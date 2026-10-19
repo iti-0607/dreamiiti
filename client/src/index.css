@@ -1,0 +1,66 @@
+@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --bg-page: #FBF9F5;
+    --card-bg: #FFFFFF;
+    --border-subtle: #EBE7DE;
+    --text-primary: #1F232B;
+    --text-secondary: #5B6371;
+    --text-muted: #8A92A0;
+    --accent-sage: #2E6F52;
+    --accent-lavender: #8E82B6;
+    --accent-amber: #E5A93C;
+  }
+
+  body {
+    background-color: var(--bg-page);
+    color: var(--text-primary);
+    font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    min-height: 100vh;
+  }
+
+  /* Custom subtle scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #D8D3C8;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #BEB7A9;
+  }
+}
+
+/* Organic Garden & Focus Glows */
+.garden-card {
+  background: radial-gradient(circle at top right, rgba(226, 239, 231, 0.45), transparent 70%), #FFFFFF;
+}
+
+.focus-glow {
+  box-shadow: 0 0 35px -5px rgba(46, 111, 82, 0.25);
+}
+
+.subtle-border {
+  border-color: #EBE7DE;
+}
+
+/* Interactive card hover */
+.interactive-card {
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+.interactive-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px -4px rgba(28, 30, 33, 0.08);
+}

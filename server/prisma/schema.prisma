@@ -1,0 +1,397 @@
+// DreamIITi Prisma Schema
+// Supports SQLite for zero-dependency instant local execution and tests,
+// and maps cleanly to PostgreSQL with schema.postgresql.prisma for production.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                   String                 @id @default(uuid())
+  email                String                 @unique
+  passwordHash         String
+  name                 String
+  avatarUrl            String?
+  timezone             String                 @default("UTC")
+  createdAt            DateTime               @default(now())
+  updatedAt            DateTime               @updatedAt
+
+  profile              UserProfile?
+  settings             UserSettings?
+  sessions             Session[]
+  passwordResetTokens  PasswordResetToken[]
+  lifeAreas            LifeArea[]
+  dreams               Dream[]
+  goals                Goal[]
+  milestones           Milestone[]
+  tasks                Task[]
+  scheduledBlocks      ScheduledBlock[]
+  habits               Habit[]
+  habitLogs            HabitLog[]
+  focusSessions        FocusSession[]
+  moodEntries          MoodEntry[]
+  journalEntries       JournalEntry[]
+  weeklyReviews        WeeklyReview[]
+  monthlyReviews       MonthlyReview[]
+  userAchievements     UserAchievement[]
+  notifications        Notification[]
+  auditLogs            AuditLog[]
+}
+
+model UserProfile {
+  id                String   @id @default(uuid())
+  userId            String   @unique
+  bio               String?
+  currentHorizon    String   @default("3_months")
+  focusDuration     Int      @default(25)
+  workingHoursStart String   @default("09:00")
+  workingHoursEnd   String   @default("18:00")
+  weekStartDay      String   @default("monday")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserSettings {
+  id                   String   @id @default(uuid())
+  userId               String   @unique
+  theme                String   @default("light")
+  wellnessEnabled      Boolean  @default(true)
+  gamificationEnabled  Boolean  @default(true)
+  notificationsEnabled Boolean  @default(true)
+  dailyCheckInTime     String   @default("09:00")
+  weeklyReviewDay      String   @default("sunday")
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Session {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  userAgent String?
+  ipAddress String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid())
+  userId    String
+  token     String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model LifeArea {
+  id        String   @id @default(uuid())
+  userId    String
+  name      String
+  color     String   @default("#2E6F52")
+  icon      String   @default("Compass")
+  isSystem  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dreams    Dream[]
+  habits    Habit[]
+}
+
+model Dream {
+  id             String    @id @default(uuid())
+  userId         String
+  lifeAreaId     String?
+  title          String
+  description    String?
+  motivation     String?
+  timeframe      String?   // "1_month", "3_months", "6_months", "1_year", "custom"
+  targetDate     DateTime?
+  status         String    @default("ACTIVE") // ACTIVE, PAUSED, COMPLETED, ARCHIVED
+  coverColor     String    @default("#2E6F52")
+  priority       String    @default("MEDIUM") // LOW, MEDIUM, HIGH
+  successCriteria String?
+  progress       Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lifeArea       LifeArea? @relation(fields: [lifeAreaId], references: [id], onDelete: SetNull)
+  goals          Goal[]
+}
+
+model Goal {
+  id             String      @id @default(uuid())
+  userId         String
+  dreamId        String?
+  title          String
+  description    String?
+  horizon        String      @default("MONTHLY") // YEARLY, MONTHLY, WEEKLY, DAILY
+  startDate      DateTime?
+  targetDate     DateTime?
+  importance     String      @default("MEDIUM") // LOW, MEDIUM, HIGH
+  estimatedHours Float       @default(0)
+  successCriteria String?
+  status         String      @default("IN_PROGRESS") // NOT_STARTED, IN_PROGRESS, COMPLETED, PAUSED, CANCELLED
+  progress       Int         @default(0)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  user           User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dream          Dream?      @relation(fields: [dreamId], references: [id], onDelete: Cascade)
+  milestones     Milestone[]
+  tasks          Task[]
+}
+
+model Milestone {
+  id          String    @id @default(uuid())
+  userId      String
+  goalId      String
+  title       String
+  description String?
+  targetDate  DateTime?
+  order       Int       @default(0)
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal        Goal      @relation(fields: [goalId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+}
+
+model Task {
+  id               String           @id @default(uuid())
+  userId           String
+  goalId           String?
+  milestoneId      String?
+  parentTaskId     String?
+  title            String
+  description      String?
+  status           String           @default("TODO") // TODO, IN_PROGRESS, COMPLETED, CANCELLED, BLOCKED
+  priority         String           @default("SHOULD_DO") // MUST_DO, SHOULD_DO, OPTIONAL
+  dueDate          DateTime?
+  scheduledStart   DateTime?
+  scheduledEnd     DateTime?
+  estimatedMinutes Int              @default(30)
+  actualMinutes    Int              @default(0)
+  tags             String?          // Comma-separated or JSON string
+  recurrenceRule   String?          // DAILY, WEEKLY, etc.
+  completedAt      DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  goal             Goal?            @relation(fields: [goalId], references: [id], onDelete: SetNull)
+  milestone        Milestone?       @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  parentTask       Task?            @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
+  subtasks         Task[]           @relation("Subtasks")
+  subtaskItems     Subtask[]
+  scheduledBlocks  ScheduledBlock[]
+  focusSessions    FocusSession[]
+}
+
+model Subtask {
+  id          String   @id @default(uuid())
+  taskId      String
+  title       String
+  isCompleted Boolean  @default(false)
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  task        Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+}
+
+model ScheduledBlock {
+  id         String   @id @default(uuid())
+  userId     String
+  taskId     String?
+  title      String
+  startTime  DateTime
+  endTime    DateTime
+  isBreak    Boolean  @default(false)
+  color      String   @default("#2E6F52")
+  isOverride Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task       Task?    @relation(fields: [taskId], references: [id], onDelete: SetNull)
+}
+
+model Habit {
+  id                 String     @id @default(uuid())
+  userId             String
+  lifeAreaId         String?
+  name               String
+  description        String?
+  category           String     @default("Routine")
+  frequency          String     @default("DAILY") // DAILY, WEEKDAYS, WEEKLY, CUSTOM
+  targetDaysPerWeek  Int        @default(7)
+  selectedWeekdays   String?    // e.g. "1,2,3,4,5"
+  reminderTime       String?
+  status             String     @default("ACTIVE") // ACTIVE, PAUSED, ARCHIVED
+  currentStreak      Int        @default(0)
+  bestStreak         Int        @default(0)
+  plantStage         String     @default("SEED") // SEED, SPROUT, BUD, BLOOM, FOREST
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lifeArea           LifeArea?  @relation(fields: [lifeAreaId], references: [id], onDelete: SetNull)
+  logs               HabitLog[]
+}
+
+model HabitLog {
+  id          String   @id @default(uuid())
+  userId      String
+  habitId     String
+  date        String   // YYYY-MM-DD
+  isCompleted Boolean  @default(true)
+  mood        String?
+  notes       String?
+  createdAt   DateTime @default(now())
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit       Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, habitId, date])
+}
+
+model FocusSession {
+  id            String    @id @default(uuid())
+  userId        String
+  taskId        String?
+  targetMinutes Int       @default(25)
+  actualMinutes Int       @default(0)
+  startedAt     DateTime  @default(now())
+  endedAt       DateTime?
+  pausesCount   Int       @default(0)
+  status        String    @default("COMPLETED") // COMPLETED, STOPPED_EARLY, CANCELLED
+  notes         String?
+  createdAt     DateTime  @default(now())
+
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task          Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+}
+
+model MoodEntry {
+  id        String   @id @default(uuid())
+  userId    String
+  date      String   // YYYY-MM-DD
+  mood      String   // great, good, neutral, low, difficult
+  energy    String   // high, medium, low
+  stress    String?  // low, medium, high
+  notes     String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+}
+
+model JournalEntry {
+  id        String   @id @default(uuid())
+  userId    String
+  date      String   // YYYY-MM-DD
+  prompt    String?
+  content   String
+  tags      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WeeklyReview {
+  id                   String   @id @default(uuid())
+  userId               String
+  weekStartDate        String   // YYYY-MM-DD
+  plannedTasksCount    Int      @default(0)
+  completedTasksCount  Int      @default(0)
+  habitRate            Int      @default(0)
+  focusMinutes         Int      @default(0)
+  wins                 String?
+  struggles            String?
+  continuationNotes    String?
+  nextWeekPriorities   String?
+  createdAt            DateTime @default(now())
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model MonthlyReview {
+  id                   String   @id @default(uuid())
+  userId               String
+  yearMonth            String   // YYYY-MM
+  wins                 String?
+  milestonesCompleted  Int      @default(0)
+  goalsEvaluated       Int      @default(0)
+  reflections          String?
+  createdAt            DateTime @default(now())
+
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Achievement {
+  id          String            @id @default(uuid())
+  code        String            @unique
+  title       String
+  description String
+  icon        String            @default("Award")
+  points      Int               @default(50)
+  createdAt   DateTime          @default(now())
+
+  users       UserAchievement[]
+}
+
+model UserAchievement {
+  id            String      @id @default(uuid())
+  userId        String
+  achievementId String
+  unlockedAt    DateTime    @default(now())
+
+  user          User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  achievement   Achievement @relation(fields: [achievementId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, achievementId])
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  type      String   // TASK_REMINDER, HABIT_REMINDER, REVIEW_DUE, SYSTEM
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String
+  action    String
+  entity    String
+  entityId  String?
+  details   String?
+  createdAt DateTime @default(now())
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

@@ -2,8 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.js';
 import { useNotification } from '../context/NotificationContext.js';
-import { Button } from '../components/ui/Button.js';
-import { Eye, EyeOff, Sparkles, ArrowRight } from 'lucide-react';
+import { Eye, EyeOff } from 'lucide-react';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -14,14 +13,22 @@ export const LoginPage: React.FC = () => {
   const { success, error } = useNotification();
   const navigate = useNavigate();
 
+  const handlePostAuthRedirect = (loggedInUser: any) => {
+    if (loggedInUser.onboardingCompleted) {
+      navigate('/app/dashboard');
+    } else {
+      navigate('/onboarding');
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password) return;
     setLoading(true);
     try {
-      await login(email, password);
+      const user = await login(email, password);
       success('Welcome back to DreamIITi!');
-      navigate('/app/today');
+      handlePostAuthRedirect(user);
     } catch (err: any) {
       error(err.message || 'Invalid email or password');
     } finally {
@@ -29,59 +36,21 @@ export const LoginPage: React.FC = () => {
     }
   };
 
-  const handleDemoLogin = async () => {
-    setLoading(true);
-    try {
-      await login('demo@dreamiiti.app', 'dream123');
-      success('Logged in with demo workspace!');
-      navigate('/app/today');
-    } catch (err: any) {
-      error(err.message || 'Failed to log in with demo account');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-ivory-100 flex items-center justify-center p-4">
-      <div className="w-full max-w-md bg-white rounded-3xl border border-charcoal-200/80 shadow-elevated p-8 sm:p-10 animate-fade-in">
+    <div className="min-h-screen bg-[#0B0F0D] text-[#F2F7F3] flex items-center justify-center p-4">
+      <div className="w-full max-w-md bg-[#151C17] rounded-2xl border border-[#27352C] shadow-2xl p-8 sm:p-10 animate-fade-in">
         {/* Brand */}
         <div className="text-center mb-8">
-          <Link to="/" className="inline-flex items-center gap-2 mb-3">
-            <div className="w-10 h-10 rounded-2xl bg-sage-600 text-white font-extrabold text-xl flex items-center justify-center shadow-sm">
-              D
-            </div>
-            <span className="font-extrabold text-2xl tracking-tight text-charcoal-900">
-              DreamIITi
-            </span>
+          <Link to="/" className="inline-block">
+            <h1 className="font-extrabold text-3xl tracking-tight text-[#F2F7F3]">
+              Dream<span className="text-[#39E58C]">IITi</span>
+            </h1>
           </Link>
-          <h1 className="text-xl font-bold text-charcoal-900">Welcome back</h1>
-          <p className="text-xs text-charcoal-500 mt-1">
-            Sign in to continue planning your life with calm intention.
-          </p>
-        </div>
-
-        {/* 1-Click Demo Login */}
-        <div className="mb-6">
-          <button
-            type="button"
-            onClick={handleDemoLogin}
-            disabled={loading}
-            className="w-full py-2.5 px-4 rounded-xl border border-sage-300 bg-sage-50/80 hover:bg-sage-100/90 text-sage-800 text-xs font-semibold flex items-center justify-center gap-2 transition-all shadow-sm active:scale-[0.99]"
-          >
-            <Sparkles className="w-4 h-4 text-sage-600" />
-            <span>Try Demo Workspace (1-Click Login)</span>
-          </button>
-          <div className="relative flex py-4 items-center">
-            <div className="flex-grow border-t border-charcoal-200"></div>
-            <span className="flex-shrink mx-4 text-charcoal-400 text-xs font-medium">or continue with email</span>
-            <div className="flex-grow border-t border-charcoal-200"></div>
-          </div>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
+            <label className="block text-xs font-semibold text-[#98A69C] mb-1.5">
               Email Address
             </label>
             <input
@@ -90,18 +59,18 @@ export const LoginPage: React.FC = () => {
               placeholder="you@domain.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+              className="w-full px-3.5 py-2.5 rounded-xl border border-[#27352C] bg-[#1B241E] text-sm text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C] focus:ring-1 focus:ring-[#39E58C]"
             />
           </div>
 
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-semibold text-charcoal-700">Password</label>
+              <label className="block text-xs font-semibold text-[#98A69C]">Password</label>
               <Link
                 to="/forgot-password"
-                className="text-xs text-sage-700 hover:text-sage-900 hover:underline font-medium"
+                className="text-xs text-[#98A69C] hover:text-[#39E58C] transition-colors"
               >
-                Forgot password?
+                Forgot?
               </Link>
             </div>
             <div className="relative">
@@ -111,34 +80,31 @@ export const LoginPage: React.FC = () => {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 pr-10"
+                className="w-full px-3.5 py-2.5 rounded-xl border border-[#27352C] bg-[#1B241E] text-sm text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C] focus:ring-1 focus:ring-[#39E58C] pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-charcoal-400 hover:text-charcoal-600"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#98A69C] hover:text-[#F2F7F3]"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
           </div>
 
-          <Button
+          <button
             type="submit"
-            variant="primary"
-            size="lg"
-            className="w-full mt-2"
-            loading={loading}
-            icon={<ArrowRight className="w-4 h-4" />}
+            disabled={loading}
+            className="w-full mt-2 py-2.5 px-4 rounded-xl font-semibold text-sm bg-[#39E58C] hover:bg-[#26C978] text-[#0B0F0D] transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
           >
-            Sign In
-          </Button>
+            {loading ? 'Signing in...' : 'Sign In'}
+          </button>
         </form>
 
-        <div className="mt-8 pt-6 border-t border-charcoal-100 text-center text-xs text-charcoal-500">
-          Don't have an account yet?{' '}
-          <Link to="/signup" className="text-sage-700 font-bold hover:underline">
-            Create an account
+        <div className="mt-6 text-center text-xs text-[#98A69C]">
+          Don't have an account?{' '}
+          <Link to="/signup" className="font-semibold text-[#39E58C] hover:underline">
+            Create account
           </Link>
         </div>
       </div>

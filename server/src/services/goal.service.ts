@@ -191,4 +191,41 @@ export const GoalService = {
       },
     });
   },
+
+  async toggleGoal(userId: string, goalId: string) {
+    const existing = await prisma.goal.findFirst({
+      where: { id: goalId, userId },
+      include: { milestones: true },
+    });
+
+    if (!existing) {
+      throw new Error('Goal not found or unauthorized.');
+    }
+
+    const isCompleting = existing.status !== 'COMPLETED';
+    const newStatus = isCompleting ? 'COMPLETED' : 'IN_PROGRESS';
+    const newProgress = isCompleting ? 100 : 0;
+
+    await prisma.goal.update({
+      where: { id: goalId },
+      data: {
+        status: newStatus,
+        progress: newProgress,
+      },
+    });
+
+    // Also update associated milestones to match completion state
+    if (existing.milestones.length > 0) {
+      await prisma.milestone.updateMany({
+        where: { goalId },
+        data: {
+          isCompleted: isCompleting,
+          completedAt: isCompleting ? new Date() : null,
+        },
+      });
+    }
+
+    return this.getGoalById(userId, goalId);
+  },
 };
+

@@ -58,6 +58,7 @@ export const TasksPage: React.FC = () => {
     onSuccess: (res) => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['heatmap'] });
       if (res?.task?.status === 'COMPLETED') {
         confetti({ particleCount: 40, spread: 50, origin: { y: 0.8 } });
         success('Task completed!');
@@ -221,9 +222,9 @@ export const TasksPage: React.FC = () => {
           <div className="w-12 h-12 rounded-2xl bg-sage-100 text-sage-700 flex items-center justify-center mx-auto mb-3">
             <CheckSquare className="w-6 h-6" />
           </div>
-          <h3 className="text-sm font-bold text-charcoal-900 mb-1">No tasks in this view</h3>
+          <h3 className="text-sm font-bold text-charcoal-900 mb-1">Your plan, your pace</h3>
           <p className="text-xs text-charcoal-500 max-w-sm mx-auto mb-4">
-            Add a concrete task to your schedule or goal roadmap.
+            Your plan, your pace. Add the tasks you want to work on.
           </p>
           <Button variant="primary" size="sm" onClick={() => setIsAddOpen(true)}>
             Add Task

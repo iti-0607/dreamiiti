@@ -1,7 +1,6 @@
 import { Router, Response } from 'express';
 import { z } from 'zod';
 import { GoalService } from '../services/goal.service.js';
-import { aiAssistant } from '../services/ai.service.js';
 import { requireAuth } from '../middleware/auth.middleware.js';
 import { AuthenticatedRequest } from '../types/index.js';
 
@@ -68,23 +67,19 @@ router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => 
   }
 });
 
-// AI & Deterministic Goal Decomposition API
-router.post('/decompose', async (req: AuthenticatedRequest, res: Response, next) => {
+router.patch('/:id/toggle', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { title, description, horizon, availableHoursPerWeek } = req.body;
-    if (!title) {
-      res.status(400).json({ success: false, error: 'Goal title is required for decomposition' });
-      return;
-    }
+    const goal = await GoalService.toggleGoal(req.user!.id, req.params.id);
+    res.json({ success: true, goal });
+  } catch (error) {
+    next(error);
+  }
+});
 
-    const plan = await aiAssistant.generateGoalBreakdown(
-      title,
-      description,
-      horizon,
-      availableHoursPerWeek || 10
-    );
-
-    res.json({ success: true, plan });
+router.put('/:id/toggle', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const goal = await GoalService.toggleGoal(req.user!.id, req.params.id);
+    res.json({ success: true, goal });
   } catch (error) {
     next(error);
   }

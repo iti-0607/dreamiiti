@@ -64,6 +64,15 @@ router.get('/me', requireAuth, async (req: AuthenticatedRequest, res: Response, 
   }
 });
 
+router.post('/onboarding', requireAuth, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const user = await AuthService.completeOnboarding(req.user!.id, req.body);
+    res.json({ success: true, user });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.put('/profile', requireAuth, async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const profile = await AuthService.updateProfile(req.user!.id, req.body);
@@ -104,6 +113,20 @@ router.post('/reset-password', async (req, res, next) => {
       return;
     }
     const result = await AuthService.resetPassword(token, newPassword);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/change-password', requireAuth, async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword || newPassword.length < 6) {
+      res.status(400).json({ success: false, error: 'Current password and new password (min 6 chars) are required' });
+      return;
+    }
+    const result = await AuthService.changePassword(req.user!.id, currentPassword, newPassword);
     res.json({ success: true, ...result });
   } catch (error) {
     next(error);

@@ -15,7 +15,11 @@ const habitSchema = z.object({
   frequency: z.string().optional(),
   targetDaysPerWeek: z.number().optional(),
   selectedWeekdays: z.string().optional(),
+  scheduledTime: z.string().nullable().optional(),
   reminderTime: z.string().nullable().optional(),
+  rewardCoins: z.number().optional(),
+  penaltyCoins: z.number().optional(),
+  penaltyEnabled: z.boolean().optional(),
 });
 
 router.get('/', async (req: AuthenticatedRequest, res: Response, next) => {
@@ -48,7 +52,27 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
 
 router.post('/:id/toggle', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
-    const { date } = req.body;
+    const { date } = req.body || {};
+    const result = await HabitService.toggleHabitLog(req.user!.id, req.params.id, date);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.post('/:id/log', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { date } = req.body || {};
+    const result = await HabitService.toggleHabitLog(req.user!.id, req.params.id, date);
+    res.json({ success: true, ...result });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/:id/toggle', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const { date } = req.body || {};
     const result = await HabitService.toggleHabitLog(req.user!.id, req.params.id, date);
     res.json({ success: true, ...result });
   } catch (error) {

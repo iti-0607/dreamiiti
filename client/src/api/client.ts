@@ -36,8 +36,14 @@ export async function request<T = any>(
   const data = await response.json().catch(() => ({}));
 
   if (!response.ok) {
+    const fallbackMessage = response.status === 404
+      ? 'Requested item or route was not found.'
+      : response.status === 401
+      ? 'Session expired. Please sign in again.'
+      : 'An unexpected error occurred. Please try again.';
+
     throw new ApiError(
-      data.error || 'An unexpected error occurred. Please try again.',
+      data.error || fallbackMessage,
       response.status,
       data.details || data
     );

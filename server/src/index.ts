@@ -19,6 +19,8 @@ import wellnessRoutes from './routes/wellness.routes.js';
 import reviewsRoutes from './routes/reviews.routes.js';
 import insightsRoutes from './routes/insights.routes.js';
 import userRoutes from './routes/user.routes.js';
+import goalsPointsRoutes from './routes/goals-points.routes.js';
+import coinsRoutes from './routes/coins.routes.js';
 import { errorHandler } from './middleware/error.middleware.js';
 
 const app = express();
@@ -73,9 +75,6 @@ app.get('/api/v1/openapi.json', (_req, res) => {
         get: { summary: 'Get goals' },
         post: { summary: 'Create goal' },
       },
-      '/api/v1/goals/decompose': {
-        post: { summary: 'AI and deterministic goal decomposition' },
-      },
       '/api/v1/tasks': {
         get: { summary: 'Get tasks by view (today, upcoming, overdue, all)' },
         post: { summary: 'Create task' },
@@ -119,6 +118,7 @@ app.get('/api/health', (_req, res) => {
 // Mount V1 API Routes
 app.use('/api/v1/auth', authLimiter, authRoutes);
 app.use('/api/v1/dreams', dreamsRoutes);
+app.use('/api/v1/goals/points', goalsPointsRoutes);
 app.use('/api/v1/goals', goalsRoutes);
 app.use('/api/v1/milestones', milestonesRoutes);
 app.use('/api/v1/tasks', tasksRoutes);
@@ -129,6 +129,15 @@ app.use('/api/v1/wellness', wellnessRoutes);
 app.use('/api/v1/reviews', reviewsRoutes);
 app.use('/api/v1/insights', insightsRoutes);
 app.use('/api/v1/user', userRoutes);
+app.use('/api/v1/coins', coinsRoutes);
+
+// Fallback JSON 404 Handler for API routes
+app.all('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `API route not found: ${req.method} ${req.originalUrl}`,
+  });
+});
 
 // Global Error Handler
 app.use(errorHandler);

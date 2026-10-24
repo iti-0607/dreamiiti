@@ -36,7 +36,11 @@ export const HabitService = {
     frequency?: string;
     targetDaysPerWeek?: number;
     selectedWeekdays?: string;
+    scheduledTime?: string;
     reminderTime?: string;
+    rewardCoins?: number;
+    penaltyCoins?: number;
+    penaltyEnabled?: boolean;
   }) {
     return prisma.habit.create({
       data: {
@@ -48,7 +52,11 @@ export const HabitService = {
         frequency: data.frequency || 'DAILY',
         targetDaysPerWeek: data.targetDaysPerWeek || 7,
         selectedWeekdays: data.selectedWeekdays || '1,2,3,4,5,6,7',
+        scheduledTime: data.scheduledTime || null,
         reminderTime: data.reminderTime || null,
+        rewardCoins: data.rewardCoins !== undefined ? data.rewardCoins : 5,
+        penaltyCoins: data.penaltyCoins || 0,
+        penaltyEnabled: Boolean(data.penaltyEnabled),
         status: 'ACTIVE',
         currentStreak: 0,
         bestStreak: 0,
@@ -89,20 +97,71 @@ export const HabitService = {
     });
 
     let isCompletedNow = true;
+
     if (existingLog) {
       isCompletedNow = !existingLog.isCompleted;
-      await prisma.habitLog.update({
-        where: { id: existingLog.id },
-        data: { isCompleted: isCompletedNow },
+      const awardNow = isCompletedNow && !existingLog.rewardAwarded && habit.rewardCoins > 0;
+
+      await prisma.$transaction(async (tx) => {
+        if (awardNow) {
+          await tx.user.update({
+            where: { id: userId },
+            data: { coinBalance: { increment: habit.rewardCoins } },
+          });
+
+          await tx.coinTransaction.create({
+            data: {
+              userId,
+              amount: habit.rewardCoins,
+              type: 'REWARD',
+              description: `Habit completed: ${habit.name}`,
+              habitId: habit.id,
+              idempotencyKey: `habit_${habit.id}_${today}`,
+            },
+          });
+        }
+
+        await tx.habitLog.update({
+          where: { id: existingLog.id },
+          data: {
+            isCompleted: isCompletedNow,
+            rewardAwarded: existingLog.rewardAwarded || awardNow,
+            coinsAwarded: awardNow ? habit.rewardCoins : existingLog.coinsAwarded,
+          },
+        });
       });
     } else {
-      await prisma.habitLog.create({
-        data: {
-          userId,
-          habitId,
-          date: today,
-          isCompleted: true,
-        },
+      const awardNow = habit.rewardCoins > 0;
+
+      await prisma.$transaction(async (tx) => {
+        if (awardNow) {
+          await tx.user.update({
+            where: { id: userId },
+            data: { coinBalance: { increment: habit.rewardCoins } },
+          });
+
+          await tx.coinTransaction.create({
+            data: {
+              userId,
+              amount: habit.rewardCoins,
+              type: 'REWARD',
+              description: `Habit completed: ${habit.name}`,
+              habitId: habit.id,
+              idempotencyKey: `habit_${habit.id}_${today}`,
+            },
+          });
+        }
+
+        await tx.habitLog.create({
+          data: {
+            userId,
+            habitId,
+            date: today,
+            isCompleted: true,
+            rewardAwarded: awardNow,
+            coinsAwarded: awardNow ? habit.rewardCoins : 0,
+          },
+        });
       });
     }
 

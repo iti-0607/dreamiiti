@@ -26,10 +26,22 @@ export const DreamDetailPage: React.FC = () => {
   const queryClient = useQueryClient();
   const { success, error } = useNotification();
 
+  // Add Goal Modal State
   const [isGoalModalOpen, setIsGoalModalOpen] = useState(false);
   const [goalTitle, setGoalTitle] = useState('');
+  const [goalDescription, setGoalDescription] = useState('');
   const [goalHorizon, setGoalHorizon] = useState('MONTHLY');
+  const [goalStartDate, setGoalStartDate] = useState(new Date().toISOString().slice(0, 10));
+  const [goalTargetDate, setGoalTargetDate] = useState('');
+  const [goalImportance, setGoalImportance] = useState('MEDIUM');
   const [goalEstimatedHours, setGoalEstimatedHours] = useState(20);
+  const [goalSuccessCriteria, setGoalSuccessCriteria] = useState('');
+
+  // Add Milestone Modal State
+  const [isMilestoneModalOpen, setIsMilestoneModalOpen] = useState(false);
+  const [selectedGoalId, setSelectedGoalId] = useState('');
+  const [milestoneTitle, setMilestoneTitle] = useState('');
+  const [milestoneTargetDate, setMilestoneTargetDate] = useState('');
 
   const { data, isLoading } = useQuery({
     queryKey: ['dream', dreamId],
@@ -68,10 +80,58 @@ export const DreamDetailPage: React.FC = () => {
       success('Goal created and linked to dream!');
       setIsGoalModalOpen(false);
       setGoalTitle('');
+      setGoalDescription('');
+      setGoalTargetDate('');
+      setGoalSuccessCriteria('');
     },
     onError: (err: any) => {
       error(err.message || 'Failed to create goal');
     },
+  });
+
+  // Create Milestone under Goal
+  const createMilestoneMutation = useMutation({
+    mutationFn: (newMilestoneData: any) => api.post('/milestones', newMilestoneData),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dream', dreamId] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      success('Milestone added!');
+      setIsMilestoneModalOpen(false);
+      setMilestoneTitle('');
+      setMilestoneTargetDate('');
+    },
+    onError: (err: any) => {
+      error(err.message || 'Failed to add milestone');
+    },
+  });
+
+  // Toggle Milestone Mutation
+  const toggleMilestoneMutation = useMutation({
+    mutationFn: (id: string) => api.patch(`/milestones/${id}/toggle`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dream', dreamId] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['heatmap'] });
+      success('Milestone status updated.');
+    },
+    onError: (err: any) => error(err.message || 'Failed to update milestone'),
+  });
+
+  // Toggle Goal Mutation
+  const toggleGoalMutation = useMutation({
+    mutationFn: (id: string) => api.patch(`/goals/${id}/toggle`),
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['dream', dreamId] });
+      queryClient.invalidateQueries({ queryKey: ['goals'] });
+      queryClient.invalidateQueries({ queryKey: ['heatmap'] });
+      const isDone = data?.goal?.status === 'COMPLETED';
+      if (isDone) {
+        success('Goal marked completed! 🎉');
+      } else {
+        success('Goal marked in progress.');
+      }
+    },
+    onError: (err: any) => error(err.message || 'Failed to update goal'),
   });
 
   const handleCreateGoal = (e: React.FormEvent) => {
@@ -80,8 +140,23 @@ export const DreamDetailPage: React.FC = () => {
     createGoalMutation.mutate({
       dreamId,
       title: goalTitle.trim(),
+      description: goalDescription.trim() || undefined,
       horizon: goalHorizon,
+      startDate: goalStartDate || null,
+      targetDate: goalTargetDate || null,
+      importance: goalImportance,
       estimatedHours: Number(goalEstimatedHours),
+      successCriteria: goalSuccessCriteria.trim() || undefined,
+    });
+  };
+
+  const handleCreateMilestone = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!milestoneTitle.trim() || !selectedGoalId) return;
+    createMilestoneMutation.mutate({
+      goalId: selectedGoalId,
+      title: milestoneTitle.trim(),
+      targetDate: milestoneTargetDate || null,
     });
   };
 
@@ -211,8 +286,8 @@ export const DreamDetailPage: React.FC = () => {
         </div>
 
         {dream.goals?.length === 0 ? (
-          <Card className="text-center py-8 text-xs text-charcoal-400">
-            No goals linked to this dream yet. Add a monthly or weekly goal to build your roadmap!
+          <Card className="text-center py-8 text-xs text-charcoal-500">
+            No goals linked to this dream yet. Start by adding a goal or choosing a task you've already created.
           </Card>
         ) : (
           <div className="space-y-4">
@@ -221,43 +296,101 @@ export const DreamDetailPage: React.FC = () => {
                 <div className="flex items-start justify-between mb-3">
                   <div>
                     <div className="flex items-center gap-2 mb-1">
-                      <span className="text-sm font-bold text-charcoal-900">{goal.title}</span>
+                      <button
+                        type="button"
+                        onClick={() => toggleGoalMutation.mutate(goal.id)}
+                        className="text-sage-600 hover:scale-110 transition-transform mr-1"
+                        title={goal.status === 'COMPLETED' ? 'Mark Goal Active' : 'Mark Goal Completed'}
+                      >
+                        {goal.status === 'COMPLETED' ? (
+                          <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+                        ) : (
+                          <Circle className="w-5 h-5 text-charcoal-300 hover:text-emerald-500 shrink-0" />
+                        )}
+                      </button>
+                      <span className={`text-sm font-bold ${goal.status === 'COMPLETED' ? 'line-through text-charcoal-400' : 'text-charcoal-900'}`}>
+                        {goal.title}
+                      </span>
                       <Badge variant="amber" size="sm">
                         {goal.horizon}
+                      </Badge>
+                      <Badge variant="sage" size="sm">
+                        {goal.importance || 'MEDIUM'}
                       </Badge>
                     </div>
                     {goal.description && (
                       <p className="text-xs text-charcoal-500">{goal.description}</p>
                     )}
                   </div>
-                  <span className="text-xs font-bold text-sage-800 bg-sage-50 px-2.5 py-1 rounded-lg border border-sage-200">
-                    {goal.progress}%
-                  </span>
+                  <div className="flex items-center gap-3">
+                    <span className="text-xs font-bold text-sage-800 bg-sage-50 px-2.5 py-1 rounded-lg border border-sage-200">
+                      {goal.progress}%
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      icon={<Plus className="w-3.5 h-3.5" />}
+                      onClick={() => {
+                        setSelectedGoalId(goal.id);
+                        setIsMilestoneModalOpen(true);
+                      }}
+                    >
+                      Add Milestone
+                    </Button>
+                  </div>
                 </div>
 
                 {/* Milestones in this goal */}
-                {goal.milestones?.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-charcoal-100 space-y-1.5">
-                    <span className="text-[11px] font-bold text-charcoal-500 uppercase tracking-wider block mb-1">
-                      Milestones
-                    </span>
-                    {goal.milestones.map((m: any) => (
+                <div className="mt-3 pt-3 border-t border-charcoal-100 space-y-1.5">
+                  <span className="text-[11px] font-bold text-charcoal-500 uppercase tracking-wider block mb-1">
+                    Milestones
+                  </span>
+                  {!goal.milestones || goal.milestones.length === 0 ? (
+                    <div className="p-3 bg-ivory-50 rounded-lg text-xs text-charcoal-500 flex items-center justify-between">
+                      <span>No milestones yet. Add your first milestone when you're ready.</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        icon={<Plus className="w-3 h-3" />}
+                        onClick={() => {
+                          setSelectedGoalId(goal.id);
+                          setIsMilestoneModalOpen(true);
+                        }}
+                      >
+                        Add Milestone
+                      </Button>
+                    </div>
+                  ) : (
+                    goal.milestones.map((m: any) => (
                       <div
                         key={m.id}
-                        className="flex items-center gap-2 text-xs text-charcoal-700 p-1.5 rounded-lg hover:bg-ivory-50"
+                        className="flex items-center justify-between text-xs text-charcoal-700 p-2 rounded-lg hover:bg-ivory-50"
                       >
-                        {m.isCompleted ? (
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                        ) : (
-                          <Circle className="w-4 h-4 text-charcoal-300 shrink-0" />
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => toggleMilestoneMutation.mutate(m.id)}
+                            className="text-sage-600 hover:scale-110"
+                          >
+                            {m.isCompleted ? (
+                              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                            ) : (
+                              <Circle className="w-4 h-4 text-charcoal-300 shrink-0" />
+                            )}
+                          </button>
+                          <span className={m.isCompleted ? 'line-through text-charcoal-400' : 'font-medium'}>
+                            {m.title}
+                          </span>
+                        </div>
+                        {m.targetDate && (
+                          <span className="text-[11px] text-charcoal-400">
+                            {new Date(m.targetDate).toLocaleDateString()}
+                          </span>
                         )}
-                        <span className={m.isCompleted ? 'line-through text-charcoal-400' : ''}>
-                          {m.title}
-                        </span>
                       </div>
-                    ))}
-                  </div>
-                )}
+                    ))
+                  )}
+                </div>
               </Card>
             ))}
           </div>
@@ -269,6 +402,7 @@ export const DreamDetailPage: React.FC = () => {
         isOpen={isGoalModalOpen}
         onClose={() => setIsGoalModalOpen(false)}
         title="Add Goal to Dream"
+        description="Manually create a milestone-driven goal. AI will never generate or populate your plan."
         maxWidth="md"
       >
         <form onSubmit={handleCreateGoal} className="space-y-4 text-xs">
@@ -286,6 +420,19 @@ export const DreamDetailPage: React.FC = () => {
             />
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
+              Description (Optional)
+            </label>
+            <textarea
+              rows={2}
+              placeholder="What specifically will you accomplish?"
+              value={goalDescription}
+              onChange={(e) => setGoalDescription(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+            />
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
@@ -296,24 +443,64 @@ export const DreamDetailPage: React.FC = () => {
                 onChange={(e) => setGoalHorizon(e.target.value)}
                 className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
               >
+                <option value="YEARLY">Yearly Milestone</option>
+                <option value="SIX_MONTH">6-Month Milestone</option>
                 <option value="MONTHLY">Monthly Target</option>
                 <option value="WEEKLY">Weekly Objective</option>
-                <option value="YEARLY">Yearly Milestone</option>
               </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                Estimated Hours
+                Priority
+              </label>
+              <select
+                value={goalImportance}
+                onChange={(e) => setGoalImportance(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
+              >
+                <option value="HIGH">High Priority</option>
+                <option value="MEDIUM">Medium Priority</option>
+                <option value="LOW">Low Priority</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
+                Start Date
               </label>
               <input
-                type="number"
-                min={1}
-                max={200}
-                value={goalEstimatedHours}
-                onChange={(e) => setGoalEstimatedHours(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+                type="date"
+                value={goalStartDate}
+                onChange={(e) => setGoalStartDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
               />
             </div>
+            <div>
+              <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
+                Target Date
+              </label>
+              <input
+                type="date"
+                value={goalTargetDate}
+                onChange={(e) => setGoalTargetDate(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
+              Success Criteria (Optional)
+            </label>
+            <input
+              type="text"
+              placeholder="e.g. 100% test coverage and clean PR merged"
+              value={goalSuccessCriteria}
+              onChange={(e) => setGoalSuccessCriteria(e.target.value)}
+              className="w-full px-3.5 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+            />
           </div>
 
           <div className="flex justify-end gap-2 pt-3">
@@ -322,6 +509,52 @@ export const DreamDetailPage: React.FC = () => {
             </Button>
             <Button variant="primary" type="submit" loading={createGoalMutation.isPending}>
               Create Goal
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* Add Milestone Modal */}
+      <Modal
+        isOpen={isMilestoneModalOpen}
+        onClose={() => setIsMilestoneModalOpen(false)}
+        title="Add Milestone"
+        description="Explicit user-created milestone waypoint."
+        maxWidth="md"
+      >
+        <form onSubmit={handleCreateMilestone} className="space-y-4 text-xs">
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
+              Milestone Title *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="e.g. Build authentication & session layer"
+              value={milestoneTitle}
+              onChange={(e) => setMilestoneTitle(e.target.value)}
+              className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
+              Target Date (Optional)
+            </label>
+            <input
+              type="date"
+              value={milestoneTargetDate}
+              onChange={(e) => setMilestoneTargetDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
+            />
+          </div>
+
+          <div className="flex justify-end gap-2 pt-3">
+            <Button variant="secondary" type="button" onClick={() => setIsMilestoneModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" type="submit" loading={createMilestoneMutation.isPending}>
+              Add Milestone
             </Button>
           </div>
         </form>

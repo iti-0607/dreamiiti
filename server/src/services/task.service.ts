@@ -61,6 +61,7 @@ export const TaskService = {
           select: { id: true, title: true, dream: { select: { id: true, title: true, coverColor: true } } },
         },
         milestone: { select: { id: true, title: true } },
+        goalPoint: { select: { id: true, title: true } },
         subtaskItems: { orderBy: { order: 'asc' } },
         scheduledBlocks: true,
       },
@@ -78,6 +79,7 @@ export const TaskService = {
     description?: string;
     goalId?: string;
     milestoneId?: string;
+    goalPointId?: string;
     priority?: string;
     dueDate?: string;
     scheduledStart?: string;
@@ -85,11 +87,23 @@ export const TaskService = {
     estimatedMinutes?: number;
     tags?: string;
     subtasks?: string[];
+    rewardCoins?: number;
+    penaltyCoins?: number;
+    penaltyEnabled?: boolean;
   }) {
     if (data.goalId) {
       const goal = await prisma.goal.findFirst({ where: { id: data.goalId, userId } });
       if (!goal) throw new Error('Goal not found or unauthorized.');
     }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { defaultTaskReward: true, defaultPenalty: true, defaultPenaltyEnabled: true },
+    });
+
+    const rewardCoins = data.rewardCoins !== undefined ? data.rewardCoins : (user?.defaultTaskReward ?? 10);
+    const penaltyCoins = data.penaltyCoins !== undefined ? data.penaltyCoins : (user?.defaultPenalty ?? 0);
+    const penaltyEnabled = data.penaltyEnabled !== undefined ? Boolean(data.penaltyEnabled) : (user?.defaultPenaltyEnabled ?? false);
 
     const task = await prisma.task.create({
       data: {
@@ -98,12 +112,16 @@ export const TaskService = {
         description: data.description?.trim(),
         goalId: data.goalId || null,
         milestoneId: data.milestoneId || null,
+        goalPointId: data.goalPointId || null,
         priority: data.priority || 'SHOULD_DO',
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : null,
         scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : null,
         estimatedMinutes: data.estimatedMinutes || 30,
         tags: data.tags || null,
+        rewardCoins,
+        penaltyCoins,
+        penaltyEnabled,
         status: 'TODO',
       },
     });
@@ -137,6 +155,7 @@ export const TaskService = {
           select: { id: true, title: true, dream: { select: { id: true, title: true, coverColor: true } } },
         },
         milestone: true,
+        goalPoint: { select: { id: true, title: true } },
         subtaskItems: { orderBy: { order: 'asc' } },
         scheduledBlocks: true,
       },
@@ -154,15 +173,41 @@ export const TaskService = {
     if (data.scheduledStart !== undefined) updatePayload.scheduledStart = data.scheduledStart ? new Date(data.scheduledStart) : null;
     if (data.scheduledEnd !== undefined) updatePayload.scheduledEnd = data.scheduledEnd ? new Date(data.scheduledEnd) : null;
 
-    if (data.status === 'COMPLETED' && existing.status !== 'COMPLETED') {
+    const isCompleting = data.status === 'COMPLETED' && existing.status !== 'COMPLETED';
+
+    if (isCompleting) {
       updatePayload.completedAt = new Date();
     } else if (data.status && data.status !== 'COMPLETED') {
       updatePayload.completedAt = null;
     }
 
-    const updated = await prisma.task.update({
-      where: { id: taskId },
-      data: updatePayload,
+    await prisma.$transaction(async (tx) => {
+      if (isCompleting && !existing.rewardAwarded) {
+        const reward = data.rewardCoins !== undefined ? data.rewardCoins : existing.rewardCoins;
+        if (reward > 0) {
+          updatePayload.rewardAwarded = true;
+          await tx.user.update({
+            where: { id: userId },
+            data: { coinBalance: { increment: reward } },
+          });
+
+          await tx.coinTransaction.create({
+            data: {
+              userId,
+              amount: reward,
+              type: 'REWARD',
+              description: `Task completed: ${existing.title}`,
+              taskId: existing.id,
+              idempotencyKey: `task_${existing.id}_complete`,
+            },
+          });
+        }
+      }
+
+      await tx.task.update({
+        where: { id: taskId },
+        data: updatePayload,
+      });
     });
 
     if (existing.goalId) {
@@ -191,12 +236,36 @@ export const TaskService = {
     if (!task) throw new Error('Task not found or unauthorized.');
 
     const isCompleting = task.status !== 'COMPLETED';
-    const updated = await prisma.task.update({
-      where: { id: taskId },
-      data: {
-        status: isCompleting ? 'COMPLETED' : 'TODO',
-        completedAt: isCompleting ? new Date() : null,
-      },
+    let rewardAwarded = task.rewardAwarded;
+
+    await prisma.$transaction(async (tx) => {
+      if (isCompleting && !task.rewardAwarded && task.rewardCoins > 0) {
+        rewardAwarded = true;
+        await tx.user.update({
+          where: { id: userId },
+          data: { coinBalance: { increment: task.rewardCoins } },
+        });
+
+        await tx.coinTransaction.create({
+          data: {
+            userId,
+            amount: task.rewardCoins,
+            type: 'REWARD',
+            description: `Task completed: ${task.title}`,
+            taskId: task.id,
+            idempotencyKey: `task_${task.id}_complete`,
+          },
+        });
+      }
+
+      await tx.task.update({
+        where: { id: taskId },
+        data: {
+          status: isCompleting ? 'COMPLETED' : 'TODO',
+          completedAt: isCompleting ? new Date() : null,
+          rewardAwarded,
+        },
+      });
     });
 
     if (task.goalId) {

@@ -21,6 +21,16 @@ model User {
   createdAt            DateTime               @default(now())
   updatedAt            DateTime               @updatedAt
 
+  lifePurpose          String?
+  sixMonthGoalTitle    String?
+  sixMonthGoalDesc     String?
+  sixMonthGoalTarget   DateTime?
+  onboardingCompleted  Boolean                @default(false)
+  coinBalance          Int                    @default(0)
+  defaultTaskReward    Int                    @default(10)
+  defaultPenalty       Int                    @default(0)
+  defaultPenaltyEnabled Boolean               @default(false)
+
   profile              UserProfile?
   settings             UserSettings?
   sessions             Session[]
@@ -29,10 +39,14 @@ model User {
   dreams               Dream[]
   goals                Goal[]
   milestones           Milestone[]
+  goalPoints           GoalPoint[]
   tasks                Task[]
   scheduledBlocks      ScheduledBlock[]
   habits               Habit[]
   habitLogs            HabitLog[]
+  coinTransactions     CoinTransaction[]
+  personalRewards      PersonalReward[]
+  rewardRedemptions    RewardRedemption[]
   focusSessions        FocusSession[]
   moodEntries          MoodEntry[]
   journalEntries       JournalEntry[]
@@ -173,11 +187,28 @@ model Milestone {
   tasks       Task[]
 }
 
+model GoalPoint {
+  id          String    @id @default(uuid())
+  userId      String
+  title       String
+  description String?
+  targetDate  DateTime?
+  order       Int       @default(0)
+  isCompleted Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tasks       Task[]
+}
+
 model Task {
   id               String           @id @default(uuid())
   userId           String
   goalId           String?
   milestoneId      String?
+  goalPointId      String?
   parentTaskId     String?
   title            String
   description      String?
@@ -190,6 +221,10 @@ model Task {
   actualMinutes    Int              @default(0)
   tags             String?          // Comma-separated or JSON string
   recurrenceRule   String?          // DAILY, WEEKLY, etc.
+  rewardCoins      Int              @default(10)
+  penaltyCoins     Int              @default(0)
+  penaltyEnabled   Boolean          @default(false)
+  rewardAwarded    Boolean          @default(false)
   completedAt      DateTime?
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
@@ -197,6 +232,7 @@ model Task {
   user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
   goal             Goal?            @relation(fields: [goalId], references: [id], onDelete: SetNull)
   milestone        Milestone?       @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  goalPoint        GoalPoint?       @relation(fields: [goalPointId], references: [id], onDelete: SetNull)
   parentTask       Task?            @relation("Subtasks", fields: [parentTaskId], references: [id], onDelete: Cascade)
   subtasks         Task[]           @relation("Subtasks")
   subtaskItems     Subtask[]
@@ -243,7 +279,11 @@ model Habit {
   frequency          String     @default("DAILY") // DAILY, WEEKDAYS, WEEKLY, CUSTOM
   targetDaysPerWeek  Int        @default(7)
   selectedWeekdays   String?    // e.g. "1,2,3,4,5"
+  scheduledTime      String?    // e.g. "07:30"
   reminderTime       String?
+  rewardCoins        Int        @default(5)
+  penaltyCoins       Int        @default(0)
+  penaltyEnabled     Boolean    @default(false)
   status             String     @default("ACTIVE") // ACTIVE, PAUSED, ARCHIVED
   currentStreak      Int        @default(0)
   bestStreak         Int        @default(0)
@@ -257,19 +297,63 @@ model Habit {
 }
 
 model HabitLog {
-  id          String   @id @default(uuid())
-  userId      String
-  habitId     String
-  date        String   // YYYY-MM-DD
-  isCompleted Boolean  @default(true)
-  mood        String?
-  notes       String?
-  createdAt   DateTime @default(now())
+  id            String   @id @default(uuid())
+  userId        String
+  habitId       String
+  date          String   // YYYY-MM-DD
+  isCompleted   Boolean  @default(true)
+  coinsAwarded  Int      @default(0)
+  rewardAwarded Boolean  @default(false)
+  mood          String?
+  notes         String?
+  createdAt     DateTime @default(now())
 
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  habit       Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  habit         Habit    @relation(fields: [habitId], references: [id], onDelete: Cascade)
 
   @@unique([userId, habitId, date])
+}
+
+model CoinTransaction {
+  id             String   @id @default(uuid())
+  userId         String
+  amount         Int
+  type           String   // REWARD, PENALTY, REDEMPTION, ADJUSTMENT
+  description    String
+  idempotencyKey String?  @unique
+  taskId         String?
+  habitId        String?
+  rewardId       String?
+  createdAt      DateTime @default(now())
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model PersonalReward {
+  id          String   @id @default(uuid())
+  userId      String
+  name        String
+  description String?
+  coinCost    Int      @default(50)
+  icon        String   @default("Gift")
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  redemptions RewardRedemption[]
+}
+
+model RewardRedemption {
+  id         String   @id @default(uuid())
+  userId     String
+  rewardId   String
+  rewardName String
+  coinCost   Int
+  redeemedAt DateTime @default(now())
+
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reward     PersonalReward @relation(fields: [rewardId], references: [id], onDelete: Cascade)
 }
 
 model FocusSession {

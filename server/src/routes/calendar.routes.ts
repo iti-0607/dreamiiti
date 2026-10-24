@@ -71,7 +71,7 @@ router.post('/resolve-unfinished', async (req: AuthenticatedRequest, res: Respon
       return;
     }
     const result = await CalendarService.resolveUnfinishedWork(req.user!.id, action, taskIds);
-    res.json({ success: true, ...result });
+    res.json(result);
   } catch (error) {
     next(error);
   }

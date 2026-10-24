@@ -33,6 +33,15 @@ router.patch('/:id/toggle', async (req: AuthenticatedRequest, res: Response, nex
   }
 });
 
+router.put('/:id/toggle', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const milestone = await MilestoneService.toggleMilestone(req.user!.id, req.params.id);
+    res.json({ success: true, milestone });
+  } catch (error) {
+    next(error);
+  }
+});
+
 router.delete('/:id', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     await MilestoneService.deleteMilestone(req.user!.id, req.params.id);

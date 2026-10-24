@@ -15,11 +15,15 @@ async function main() {
   await prisma.journalEntry.deleteMany();
   await prisma.moodEntry.deleteMany();
   await prisma.focusSession.deleteMany();
+  await prisma.coinTransaction.deleteMany();
+  await prisma.rewardRedemption.deleteMany();
+  await prisma.personalReward.deleteMany();
   await prisma.habitLog.deleteMany();
   await prisma.habit.deleteMany();
   await prisma.scheduledBlock.deleteMany();
   await prisma.subtask.deleteMany();
   await prisma.task.deleteMany();
+  await prisma.goalPoint.deleteMany();
   await prisma.milestone.deleteMany();
   await prisma.goal.deleteMany();
   await prisma.dream.deleteMany();
@@ -39,10 +43,21 @@ async function main() {
       name: 'Aarav Sharma',
       passwordHash,
       timezone: 'Asia/Kolkata',
+      lifePurpose:
+        'Ek hi life mili hai bas, isse itna tagda khel ki dekhte reh jaayein sab. To master systems engineering, achieve financial independence, build impactful open-source tools, and maintain unwavering physical discipline and quiet focus.',
+      sixMonthGoalTitle: 'Master Systems Engineering & Production Distributed Systems',
+      sixMonthGoalDesc:
+        'Build and ship a production-grade distributed backend with zero downtime, sub-50ms latency, and high test coverage while maintaining 7+ hours of deep sleep and daily fitness.',
+      sixMonthGoalTarget: new Date(Date.now() + 180 * 24 * 60 * 60 * 1000),
+      onboardingCompleted: true,
+      coinBalance: 240,
+      defaultTaskReward: 10,
+      defaultPenalty: 5,
+      defaultPenaltyEnabled: false,
       profile: {
         create: {
           bio: 'Building systems, mastering computer science, and living with intentionality.',
-          currentHorizon: '3_months',
+          currentHorizon: '6_months',
           focusDuration: 25,
           workingHoursStart: '08:30',
           workingHoursEnd: '19:00',
@@ -51,8 +66,8 @@ async function main() {
       },
       settings: {
         create: {
-          theme: 'light',
-          wellnessEnabled: true,
+          theme: 'dark',
+          wellnessEnabled: false,
           gamificationEnabled: true,
           notificationsEnabled: true,
           dailyCheckInTime: '09:00',
@@ -403,6 +418,140 @@ async function main() {
       continuationNotes: 'Keep the 25-minute focus intervals. They feel natural and sustainable.',
       nextWeekPriorities: 'Integrate the full calendar and finalize the Habit Garden visuals.',
     },
+  });
+
+  console.log('[DreamIITi Seed] Creating six-month goal points...');
+
+  await prisma.goalPoint.createMany({
+    data: [
+      {
+        userId: demoUser.id,
+        title: 'Architect low-latency streaming pipeline & rate limiters',
+        description: 'Complete token bucket and leaky bucket algorithms with Redis and in-memory caches.',
+        order: 0,
+        isCompleted: true,
+        completedAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      },
+      {
+        userId: demoUser.id,
+        title: 'Master distributed transaction isolation & idempotency keys',
+        description: 'Design zero-double-spend ledger model and audit trails.',
+        order: 1,
+        isCompleted: true,
+        completedAt: new Date(Date.now() - 3 * 24 * 60 * 60 * 1000),
+      },
+      {
+        userId: demoUser.id,
+        title: 'Build high-performance GitHub-style contribution calendar & heatmap',
+        description: 'Deterministic streak counting, weekly matrix, and real-time activity tooltips.',
+        order: 2,
+        isCompleted: true,
+        completedAt: new Date(),
+      },
+      {
+        userId: demoUser.id,
+        title: 'Deploy containerized cluster with automated CI/CD and sub-50ms latency',
+        description: 'Deploy Kubernetes pods, set up Prometheus monitoring, and benchmark endpoints.',
+        order: 3,
+        isCompleted: false,
+      },
+      {
+        userId: demoUser.id,
+        title: 'Publish open-source productivity dashboard to 1,000+ developers',
+        description: 'Write complete technical documentation, architecture diagrams, and launch on GitHub.',
+        order: 4,
+        isCompleted: false,
+      },
+    ],
+  });
+
+  console.log('[DreamIITi Seed] Creating personal rewards...');
+
+  const reward1 = await prisma.personalReward.create({
+    data: {
+      userId: demoUser.id,
+      name: 'Weekend Cheat Meal',
+      description: 'Order your favorite artisanal pizza guilt-free after hitting weekly consistency.',
+      coinCost: 50,
+      icon: 'Pizza',
+      active: true,
+    },
+  });
+
+  await prisma.personalReward.create({
+    data: {
+      userId: demoUser.id,
+      name: 'Buy a Hardcover Tech Book',
+      description: 'Add a classic systems or CS book to the physical library.',
+      coinCost: 120,
+      icon: 'BookOpen',
+      active: true,
+    },
+  });
+
+  await prisma.personalReward.create({
+    data: {
+      userId: demoUser.id,
+      name: 'Guilt-Free Gaming Night',
+      description: 'Play favorite strategy games uninterrupted for 3 hours on Saturday night.',
+      coinCost: 80,
+      icon: 'Gamepad2',
+      active: true,
+    },
+  });
+
+  await prisma.personalReward.create({
+    data: {
+      userId: demoUser.id,
+      name: 'Specialty Coffee Shop Afternoon',
+      description: 'Spend 3 hours at a high-end specialty roastery working without distractions.',
+      coinCost: 40,
+      icon: 'Coffee',
+      active: true,
+    },
+  });
+
+  console.log('[DreamIITi Seed] Creating coin transactions...');
+
+  await prisma.coinTransaction.createMany({
+    data: [
+      {
+        userId: demoUser.id,
+        amount: 50,
+        type: 'REWARD',
+        description: 'Onboarding completion reward',
+        createdAt: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000),
+      },
+      {
+        userId: demoUser.id,
+        amount: 20,
+        type: 'REWARD',
+        description: 'Completed goal point: Architect low-latency streaming pipeline',
+        createdAt: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000),
+      },
+      {
+        userId: demoUser.id,
+        amount: -50,
+        type: 'REDEMPTION',
+        description: 'Redeemed: Weekend Cheat Meal',
+        rewardId: reward1.id,
+        createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
+      },
+      {
+        userId: demoUser.id,
+        amount: 10,
+        type: 'REWARD',
+        description: 'Task completed: Review distributed systems architecture',
+        createdAt: new Date(Date.now() - 1 * 24 * 60 * 60 * 1000),
+      },
+      {
+        userId: demoUser.id,
+        amount: 10,
+        type: 'REWARD',
+        description: 'Task completed: Write database migration scripts',
+        createdAt: new Date(),
+      },
+    ],
   });
 
   console.log('✅ [DreamIITi Seed] Demo data seeded successfully!');

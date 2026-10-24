@@ -332,7 +332,7 @@ export const WellnessPage: React.FC = () => {
 
                   {entry.tags && (
                     <div className="pt-2 flex items-center gap-1.5">
-                      {entry.tags.split(',').map((tag) => (
+                      {entry.tags.split(',').map((tag: string) => (
                         <span
                           key={tag}
                           className="text-[10px] text-charcoal-400 bg-ivory-100 px-2 py-0.5 rounded"

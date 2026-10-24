@@ -105,6 +105,15 @@ export const AuthService = {
         name: user.name,
         email: user.email,
         timezone: user.timezone,
+        lifePurpose: user.lifePurpose,
+        sixMonthGoalTitle: user.sixMonthGoalTitle,
+        sixMonthGoalDesc: user.sixMonthGoalDesc,
+        sixMonthGoalTarget: user.sixMonthGoalTarget,
+        onboardingCompleted: user.onboardingCompleted,
+        coinBalance: user.coinBalance,
+        defaultTaskReward: user.defaultTaskReward,
+        defaultPenalty: user.defaultPenalty,
+        defaultPenaltyEnabled: user.defaultPenaltyEnabled,
         profile: user.profile,
         settings: user.settings,
       },
@@ -121,6 +130,15 @@ export const AuthService = {
         email: true,
         avatarUrl: true,
         timezone: true,
+        lifePurpose: true,
+        sixMonthGoalTitle: true,
+        sixMonthGoalDesc: true,
+        sixMonthGoalTarget: true,
+        onboardingCompleted: true,
+        coinBalance: true,
+        defaultTaskReward: true,
+        defaultPenalty: true,
+        defaultPenaltyEnabled: true,
         createdAt: true,
         profile: true,
         settings: true,
@@ -133,6 +151,81 @@ export const AuthService = {
     }
 
     return user;
+  },
+
+  async completeOnboarding(
+    userId: string,
+    data: {
+      lifePurpose: string;
+      sixMonthGoal?: { title: string; description?: string; targetDate?: string };
+      goalPoints?: Array<{ title: string; description?: string; targetDate?: string }>;
+      habits?: Array<{
+        name: string;
+        description?: string;
+        scheduledTime?: string;
+        frequency: string;
+        selectedWeekdays?: string;
+        rewardCoins?: number;
+        penaltyCoins?: number;
+        penaltyEnabled?: boolean;
+      }>;
+    }
+  ) {
+    await prisma.$transaction(async (tx) => {
+      // 1. Update user
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          lifePurpose: data.lifePurpose?.trim() || null,
+          sixMonthGoalTitle: data.sixMonthGoal?.title?.trim() || null,
+          sixMonthGoalDesc: data.sixMonthGoal?.description?.trim() || null,
+          sixMonthGoalTarget: data.sixMonthGoal?.targetDate ? new Date(data.sixMonthGoal.targetDate) : null,
+          onboardingCompleted: true,
+        },
+      });
+
+      // 2. Create goal points if provided
+      if (data.goalPoints && data.goalPoints.length > 0) {
+        for (let i = 0; i < data.goalPoints.length; i++) {
+          const pt = data.goalPoints[i];
+          if (pt.title?.trim()) {
+            await tx.goalPoint.create({
+              data: {
+                userId,
+                title: pt.title.trim(),
+                description: pt.description?.trim() || null,
+                targetDate: pt.targetDate ? new Date(pt.targetDate) : null,
+                order: i,
+              },
+            });
+          }
+        }
+      }
+
+      // 3. Create habits if provided
+      if (data.habits && data.habits.length > 0) {
+        for (const h of data.habits) {
+          if (h.name?.trim()) {
+            await tx.habit.create({
+              data: {
+                userId,
+                name: h.name.trim(),
+                description: h.description?.trim() || null,
+                frequency: h.frequency || 'DAILY',
+                selectedWeekdays: h.selectedWeekdays || '1,2,3,4,5,6,7',
+                scheduledTime: h.scheduledTime || null,
+                rewardCoins: h.rewardCoins !== undefined ? h.rewardCoins : 5,
+                penaltyCoins: h.penaltyCoins || 0,
+                penaltyEnabled: Boolean(h.penaltyEnabled),
+                status: 'ACTIVE',
+              },
+            });
+          }
+        }
+      }
+    });
+
+    return this.getMe(userId);
   },
 
   async updateProfile(userId: string, data: any) {
@@ -223,5 +316,28 @@ export const AuthService = {
     ]);
 
     return { message: 'Password has been successfully reset. Please log in.' };
+  },
+
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    if (!user) {
+      throw new Error('User not found.');
+    }
+
+    const isValid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!isValid) {
+      throw new Error('Current password is incorrect.');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 12);
+    await prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash },
+    });
+
+    return { message: 'Password changed successfully.' };
   },
 };

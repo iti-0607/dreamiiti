@@ -2,468 +2,657 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.js';
 import { useNotification } from '../context/NotificationContext.js';
-import { api } from '../api/client.js';
-import { Button } from '../components/ui/Button.js';
-import {
-  Sparkles,
-  ArrowRight,
-  Briefcase,
-  GraduationCap,
-  HeartPulse,
-  Coins,
-  Palette,
-  Compass,
-  Check,
-  Clock,
-  Calendar,
-  CheckCircle2,
-} from 'lucide-react';
+import { Plus, Trash2, ArrowLeft, ArrowRight, Check, Sparkles, Clock, Calendar, Coins, ShieldAlert } from 'lucide-react';
+
+interface GoalPointItem {
+  title: string;
+  description?: string;
+  targetDate?: string;
+}
+
+interface HabitItem {
+  name: string;
+  description?: string;
+  scheduledTime?: string;
+  frequency: string;
+  selectedWeekdays?: string;
+  rewardCoins: number;
+  penaltyCoins: number;
+  penaltyEnabled: boolean;
+}
+
+const WEEKDAYS = [
+  { id: 1, label: 'Mon' },
+  { id: 2, label: 'Tue' },
+  { id: 3, label: 'Wed' },
+  { id: 4, label: 'Thu' },
+  { id: 5, label: 'Fri' },
+  { id: 6, label: 'Sat' },
+  { id: 7, label: 'Sun' },
+];
 
 export const OnboardingPage: React.FC = () => {
   const [step, setStep] = useState(1);
-  const [loading, setLoading] = useState(false);
-  const { user, updateProfile, updateSettings } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+
+  // Step 1: Life purpose
+  const [lifePurpose, setLifePurpose] = useState('');
+
+  // Step 2: Six-month goal
+  const [goalTitle, setGoalTitle] = useState('');
+  const [goalDesc, setGoalDesc] = useState('');
+  const [goalTargetDate, setGoalTargetDate] = useState('');
+
+  // Step 3: Goal Points
+  const [points, setPoints] = useState<GoalPointItem[]>([
+    { title: '' },
+  ]);
+
+  // Step 4: Daily Habits
+  const [habits, setHabits] = useState<HabitItem[]>([
+    {
+      name: '',
+      description: '',
+      scheduledTime: '',
+      frequency: 'DAILY',
+      selectedWeekdays: '1,2,3,4,5,6,7',
+      rewardCoins: 5,
+      penaltyCoins: 0,
+      penaltyEnabled: false,
+    },
+  ]);
+
+  const { completeOnboarding } = useAuth();
   const { success, error } = useNotification();
   const navigate = useNavigate();
 
-  // Step 1: Life areas
-  const [selectedAreas, setSelectedAreas] = useState<string[]>([
-    'Career & Learning',
-    'Health & Routine',
-    'Personal Growth',
-  ]);
-
-  // Step 2: First dream
-  const [dreamTitle, setDreamTitle] = useState('');
-  const [dreamMotivation, setDreamMotivation] = useState('');
-
-  // Step 3: Horizon
-  const [horizon, setHorizon] = useState('3_months');
-
-  // Step 4: Availability
-  const [focusDuration, setFocusDuration] = useState(25);
-  const [workingHoursStart, setWorkingHoursStart] = useState('09:00');
-  const [workingHoursEnd, setWorkingHoursEnd] = useState('18:00');
-
-  // Step 5: Preferences
-  const [weekStartDay, setWeekStartDay] = useState('monday');
-  const [wellnessEnabled, setWellnessEnabled] = useState(true);
-
-  const areasList = [
-    { name: 'Career & Learning', icon: Briefcase, color: 'text-sage-700 bg-sage-50 border-sage-200' },
-    { name: 'Health & Routine', icon: HeartPulse, color: 'text-emerald-700 bg-emerald-50 border-emerald-200' },
-    { name: 'Financial Freedom', icon: Coins, color: 'text-amber-700 bg-amber-50 border-amber-200' },
-    { name: 'Creativity & Hobbies', icon: Palette, color: 'text-lavender-700 bg-lavender-50 border-lavender-200' },
-    { name: 'Personal Growth', icon: Compass, color: 'text-sage-800 bg-sage-50 border-sage-200' },
-  ];
-
-  const toggleArea = (name: string) => {
-    setSelectedAreas((prev) =>
-      prev.includes(name) ? prev.filter((a) => a !== name) : [...prev, name]
-    );
+  // Point management
+  const addPoint = () => setPoints([...points, { title: '' }]);
+  const removePoint = (idx: number) => setPoints(points.filter((_, i) => i !== idx));
+  const updatePoint = (idx: number, field: keyof GoalPointItem, val: string) => {
+    const updated = [...points];
+    updated[idx] = { ...updated[idx], [field]: val };
+    setPoints(updated);
   };
 
-  const handleFinishOnboarding = async () => {
-    setLoading(true);
+  // Habit management
+  const addHabit = () =>
+    setHabits([
+      ...habits,
+      {
+        name: '',
+        description: '',
+        scheduledTime: '',
+        frequency: 'DAILY',
+        selectedWeekdays: '1,2,3,4,5,6,7',
+        rewardCoins: 5,
+        penaltyCoins: 0,
+        penaltyEnabled: false,
+      },
+    ]);
+  const removeHabit = (idx: number) => setHabits(habits.filter((_, i) => i !== idx));
+  const updateHabit = (idx: number, field: keyof HabitItem, val: any) => {
+    const updated = [...habits];
+    updated[idx] = { ...updated[idx], [field]: val };
+    setHabits(updated);
+  };
+
+  const setHabitShortcut = (idx: number, type: 'daily' | 'weekdays' | 'weekends') => {
+    if (type === 'daily') {
+      updateHabit(idx, 'frequency', 'DAILY');
+      updateHabit(idx, 'selectedWeekdays', '1,2,3,4,5,6,7');
+    } else if (type === 'weekdays') {
+      updateHabit(idx, 'frequency', 'WEEKDAYS');
+      updateHabit(idx, 'selectedWeekdays', '1,2,3,4,5');
+    } else if (type === 'weekends') {
+      updateHabit(idx, 'frequency', 'CUSTOM');
+      updateHabit(idx, 'selectedWeekdays', '6,7');
+    }
+  };
+
+  const toggleHabitDay = (idx: number, dayId: number) => {
+    const currentDays = (habits[idx].selectedWeekdays || '')
+      .split(',')
+      .filter(Boolean)
+      .map(Number);
+    let newDays: number[];
+    if (currentDays.includes(dayId)) {
+      newDays = currentDays.filter((d) => d !== dayId);
+    } else {
+      newDays = [...currentDays, dayId].sort();
+    }
+    updateHabit(idx, 'frequency', 'CUSTOM');
+    updateHabit(idx, 'selectedWeekdays', newDays.join(','));
+  };
+
+  const handleFinish = async () => {
+    setSubmitting(true);
     try {
-      // 1. Update Profile & Settings
-      await updateProfile({
-        currentHorizon: horizon,
-        focusDuration,
-        workingHoursStart,
-        workingHoursEnd,
-        weekStartDay,
+      const validPoints = points.filter((p) => p.title.trim().length > 0);
+      const validHabits = habits.filter((h) => h.name.trim().length > 0);
+
+      await completeOnboarding({
+        lifePurpose,
+        sixMonthGoal: {
+          title: goalTitle,
+          description: goalDesc,
+          targetDate: goalTargetDate || undefined,
+        },
+        goalPoints: validPoints,
+        habits: validHabits,
       });
 
-      await updateSettings({
-        wellnessEnabled,
-      });
-
-      // 2. Create Initial Dream if provided
-      if (dreamTitle.trim()) {
-        await api.post('/dreams', {
-          title: dreamTitle.trim(),
-          motivation: dreamMotivation.trim() || undefined,
-          timeframe: horizon,
-        });
-      }
-
-      success('Your personalized workspace is ready!');
-      navigate('/app/today');
+      success('Welcome to your discipline dashboard!');
+      navigate('/app/dashboard');
     } catch (err: any) {
-      error(err.message || 'Failed to finish onboarding');
+      error(err.message || 'Failed to complete setup');
     } finally {
-      setLoading(false);
+      setSubmitting(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-ivory-100 flex flex-col items-center justify-center p-4 sm:p-6">
-      <div className="w-full max-w-xl bg-white rounded-3xl border border-charcoal-200/80 shadow-elevated p-6 sm:p-10 animate-fade-in relative">
-        {/* Progress Dots */}
-        <div className="flex items-center justify-between mb-8 pb-4 border-b border-charcoal-100">
-          <div className="flex items-center gap-2">
-            {[1, 2, 3, 4, 5, 6].map((i) => (
-              <div
-                key={i}
-                className={`h-2 rounded-full transition-all ${
-                  i === step
-                    ? 'w-8 bg-sage-600'
-                    : i < step
-                    ? 'w-2 bg-sage-300'
-                    : 'w-2 bg-charcoal-200'
-                }`}
-              />
-            ))}
+    <div className="min-h-screen bg-[#0B0F0D] text-[#F2F7F3] flex flex-col selection:bg-[#1B3024] selection:text-[#39E58C]">
+      {/* Top Header */}
+      <header className="border-b border-[#27352C] bg-[#101713] px-6 py-4">
+        <div className="max-w-4xl mx-auto flex items-center justify-between">
+          <span className="font-extrabold text-xl tracking-tight text-[#F2F7F3]">
+            Dream<span className="text-[#39E58C]">IITi</span>
+          </span>
+          <div className="text-xs font-semibold text-[#98A69C]">
+            Step <span className="text-[#39E58C]">{step}</span> of 5
           </div>
-          <button
-            onClick={() => navigate('/app/today')}
-            className="text-xs text-charcoal-400 hover:text-charcoal-700 font-medium"
-          >
-            Skip for now
-          </button>
         </div>
+      </header>
 
-        {/* Step 1: Welcome & Life Areas */}
-        {step === 1 && (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sage-50 text-sage-800 text-xs font-semibold mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-sage-600" />
-                <span>Step 1 of 6</span>
-              </div>
-              <h2 className="text-2xl font-bold text-charcoal-900">What would you like to nurture?</h2>
-              <p className="text-xs text-charcoal-500 mt-1">
-                Choose the life areas that matter most right now. You can customize them anytime.
-              </p>
-            </div>
+      {/* Progress Bar */}
+      <div className="w-full bg-[#1B241E] h-1.5">
+        <div
+          className="bg-[#39E58C] h-1.5 transition-all duration-300"
+          style={{ width: `${(step / 5) * 100}%` }}
+        />
+      </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {areasList.map((area) => {
-                const Icon = area.icon;
-                const isSelected = selectedAreas.includes(area.name);
-                return (
-                  <button
-                    type="button"
-                    key={area.name}
-                    onClick={() => toggleArea(area.name)}
-                    className={`flex items-center justify-between p-3.5 rounded-2xl border text-left transition-all ${
-                      isSelected
-                        ? `${area.color} border-current shadow-sm scale-[1.01]`
-                        : 'bg-white border-charcoal-200/80 text-charcoal-700 hover:bg-ivory-50'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <Icon className="w-5 h-5 shrink-0" />
-                      <span className="text-xs font-semibold">{area.name}</span>
-                    </div>
-                    {isSelected && <Check className="w-4 h-4 shrink-0" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex justify-end pt-4">
-              <Button
-                variant="primary"
-                onClick={() => setStep(2)}
-                icon={<ArrowRight className="w-4 h-4" />}
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 2: Capture First Dream */}
-        {step === 2 && (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-lavender-50 text-lavender-800 text-xs font-semibold mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-lavender-600" />
-                <span>Step 2 of 6</span>
-              </div>
-              <h2 className="text-2xl font-bold text-charcoal-900">Plant your first dream</h2>
-              <p className="text-xs text-charcoal-500 mt-1">
-                Name something you genuinely wish to accomplish or become. Don't worry about perfection.
-              </p>
-            </div>
-
-            <div className="space-y-4">
+      {/* Main Container */}
+      <div className="flex-1 flex items-center justify-center p-6">
+        <div className="w-full max-w-2xl bg-[#151C17] rounded-2xl border border-[#27352C] p-8 sm:p-10 shadow-2xl">
+          {/* STEP 1: ULTIMATE LIFE PURPOSE */}
+          {step === 1 && (
+            <div className="space-y-6 animate-fade-in">
               <div>
-                <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                  Dream Title
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Master full-stack architecture or Run a 10K"
-                  value={dreamTitle}
-                  onChange={(e) => setDreamTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
-                />
+                <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                  Step 1 · The Long View
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F7F3] mt-1">
+                  What do you ultimately want from this one life?
+                </h2>
+                <p className="text-sm text-[#98A69C] mt-2 leading-relaxed">
+                  Describe your dreams, ambitions, motivations, and the kind of person you want to become. Write freely. This is your personal space.
+                </p>
               </div>
 
-              <div>
-                <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                  Why does this matter to you?
-                </label>
-                <textarea
-                  rows={3}
-                  placeholder="Connecting your dream to your internal 'why' makes consistency joyful."
-                  value={dreamMotivation}
-                  onChange={(e) => setDreamMotivation(e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
-                />
-              </div>
-            </div>
+              <textarea
+                rows={8}
+                value={lifePurpose}
+                onChange={(e) => setLifePurpose(e.target.value)}
+                placeholder="Write honestly about what drives you, the standard you hold yourself to, your financial ambitions, mastery, and who you intend to become..."
+                className="w-full px-4 py-3 rounded-xl border border-[#27352C] bg-[#1B241E] text-sm text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C] focus:ring-1 focus:ring-[#39E58C] leading-relaxed resize-y"
+              />
 
-            <div className="flex justify-between pt-4">
-              <Button variant="ghost" onClick={() => setStep(1)}>
-                Back
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setStep(3)}
-                icon={<ArrowRight className="w-4 h-4" />}
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Horizon */}
-        {step === 3 && (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-50 text-amber-800 text-xs font-semibold mb-2">
-                <Calendar className="w-3.5 h-3.5 text-amber-600" />
-                <span>Step 3 of 6</span>
-              </div>
-              <h2 className="text-2xl font-bold text-charcoal-900">Choose your primary planning horizon</h2>
-              <p className="text-xs text-charcoal-500 mt-1">
-                A 3-month horizon is ideal for major skill acquisition without distant horizon fatigue.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {[
-                { id: '1_month', label: '1 Month', desc: 'Sprint focus' },
-                { id: '3_months', label: '3 Months (Recommended)', desc: 'Quarterly mastery' },
-                { id: '6_months', label: '6 Months', desc: 'Major transformation' },
-                { id: '1_year', label: '1 Year', desc: 'Long-term ambition' },
-              ].map((opt) => (
+              <div className="flex justify-end pt-4 border-t border-[#27352C]">
                 <button
                   type="button"
-                  key={opt.id}
-                  onClick={() => setHorizon(opt.id)}
-                  className={`p-4 rounded-2xl border text-left transition-all ${
-                    horizon === opt.id
-                      ? 'bg-sage-50 border-sage-500 text-sage-900 shadow-sm'
-                      : 'bg-white border-charcoal-200 hover:bg-ivory-50 text-charcoal-700'
-                  }`}
+                  onClick={() => setStep(2)}
+                  className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-[#39E58C] text-[#0B0F0D] hover:bg-[#26C978] transition-colors flex items-center gap-2"
                 >
-                  <div className="font-bold text-sm">{opt.label}</div>
-                  <div className="text-xs text-charcoal-500 mt-1">{opt.desc}</div>
+                  Continue <ArrowRight className="w-4 h-4" />
                 </button>
-              ))}
-            </div>
-
-            <div className="flex justify-between pt-4">
-              <Button variant="ghost" onClick={() => setStep(2)}>
-                Back
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setStep(4)}
-                icon={<ArrowRight className="w-4 h-4" />}
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 4: Availability & Focus */}
-        {step === 4 && (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sage-50 text-sage-800 text-xs font-semibold mb-2">
-                <Clock className="w-3.5 h-3.5 text-sage-600" />
-                <span>Step 4 of 6</span>
               </div>
-              <h2 className="text-2xl font-bold text-charcoal-900">Rhythm and focus interval</h2>
-              <p className="text-xs text-charcoal-500 mt-1">
-                Setting realistic boundaries prevents calendar burnout.
-              </p>
             </div>
+          )}
 
-            <div className="space-y-4">
+          {/* STEP 2: SIX-MONTH GOAL */}
+          {step === 2 && (
+            <div className="space-y-6 animate-fade-in">
               <div>
-                <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                  Preferred Focus Duration
-                </label>
-                <div className="grid grid-cols-4 gap-2">
-                  {[15, 25, 45, 60].map((min) => (
-                    <button
-                      type="button"
-                      key={min}
-                      onClick={() => setFocusDuration(min)}
-                      className={`py-2.5 rounded-xl border font-bold text-xs transition-all ${
-                        focusDuration === min
-                          ? 'bg-sage-600 text-white border-sage-700'
-                          : 'bg-white border-charcoal-200 text-charcoal-700 hover:bg-ivory-50'
-                      }`}
-                    >
-                      {min} min
-                    </button>
-                  ))}
-                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                  Step 2 · Near Horizon
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F7F3] mt-1">
+                  Where do you want to be six months from now?
+                </h2>
+                <p className="text-sm text-[#98A69C] mt-2 leading-relaxed">
+                  Define your single highest-leverage outcome for the next 180 days.
+                </p>
               </div>
 
-              <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-4">
                 <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                    Working Hours Start
+                  <label className="block text-xs font-semibold text-[#98A69C] mb-1.5">
+                    Goal Title (Required)
                   </label>
                   <input
-                    type="time"
-                    value={workingHoursStart}
-                    onChange={(e) => setWorkingHoursStart(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+                    type="text"
+                    required
+                    placeholder="e.g. Master Distributed Systems & Build a World-Class Portfolio Project"
+                    value={goalTitle}
+                    onChange={(e) => setGoalTitle(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[#27352C] bg-[#1B241E] text-sm text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C] focus:ring-1 focus:ring-[#39E58C]"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                    Working Hours End
+                  <label className="block text-xs font-semibold text-[#98A69C] mb-1.5">
+                    Description & Success Criteria (Optional)
+                  </label>
+                  <textarea
+                    rows={4}
+                    placeholder="Describe how your life will look when this is done, and what concrete criteria mark completion..."
+                    value={goalDesc}
+                    onChange={(e) => setGoalDesc(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[#27352C] bg-[#1B241E] text-sm text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C] focus:ring-1 focus:ring-[#39E58C] resize-y"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-[#98A69C] mb-1.5">
+                    Target Date (Optional)
                   </label>
                   <input
-                    type="time"
-                    value={workingHoursEnd}
-                    onChange={(e) => setWorkingHoursEnd(e.target.value)}
-                    className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+                    type="date"
+                    value={goalTargetDate}
+                    onChange={(e) => setGoalTargetDate(e.target.value)}
+                    className="w-full px-4 py-2.5 rounded-xl border border-[#27352C] bg-[#1B241E] text-sm text-[#F2F7F3] focus:outline-none focus:border-[#39E58C] focus:ring-1 focus:ring-[#39E58C]"
                   />
                 </div>
               </div>
-            </div>
 
-            <div className="flex justify-between pt-4">
-              <Button variant="ghost" onClick={() => setStep(3)}>
-                Back
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setStep(5)}
-                icon={<ArrowRight className="w-4 h-4" />}
-              >
-                Continue
-              </Button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 5: Planning Preferences */}
-        {step === 5 && (
-          <div className="space-y-6 animate-fade-in">
-            <div>
-              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-lavender-50 text-lavender-800 text-xs font-semibold mb-2">
-                <Sparkles className="w-3.5 h-3.5 text-lavender-600" />
-                <span>Step 5 of 6</span>
+              <div className="flex justify-between items-center pt-4 border-t border-[#27352C]">
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#27352C] text-[#98A69C] hover:text-[#F2F7F3] hover:border-[#39E58C] transition-colors flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" /> Back
+                </button>
+                <button
+                  type="button"
+                  disabled={!goalTitle.trim()}
+                  onClick={() => setStep(3)}
+                  className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-[#39E58C] text-[#0B0F0D] hover:bg-[#26C978] transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  Continue <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
-              <h2 className="text-2xl font-bold text-charcoal-900">Personalize your experience</h2>
-              <p className="text-xs text-charcoal-500 mt-1">
-                Customize your week start day and wellness check-in prompts.
-              </p>
             </div>
+          )}
 
-            <div className="space-y-4">
+          {/* STEP 3: USER-OWNED POINTS */}
+          {step === 3 && (
+            <div className="space-y-6 animate-fade-in">
               <div>
-                <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                  Week Start Day
-                </label>
-                <div className="grid grid-cols-2 gap-3">
-                  {['monday', 'sunday'].map((day) => (
-                    <button
-                      type="button"
-                      key={day}
-                      onClick={() => setWeekStartDay(day)}
-                      className={`py-2.5 px-4 rounded-xl border text-xs font-bold capitalize transition-all ${
-                        weekStartDay === day
-                          ? 'bg-sage-50 border-sage-500 text-sage-900'
-                          : 'bg-white border-charcoal-200 text-charcoal-700 hover:bg-ivory-50'
-                      }`}
-                    >
-                      Starts on {day}
-                    </button>
-                  ))}
-                </div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                  Step 3 · Breakdown
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F7F3] mt-1">
+                  What do you want to accomplish to reach this goal?
+                </h2>
+                <p className="text-sm text-[#98A69C] mt-2 leading-relaxed">
+                  Break your goal into concrete milestones that you control. Add as many as you need.
+                </p>
               </div>
 
-              <div className="p-4 rounded-2xl bg-ivory-50 border border-charcoal-200/80 flex items-center justify-between">
-                <div>
-                  <div className="text-xs font-bold text-charcoal-900">Daily Wellness Check-in</div>
-                  <div className="text-[11px] text-charcoal-500">
-                    Gentle, 1-click energy and mood recording
+              <div className="space-y-3 max-h-[360px] overflow-y-auto pr-1">
+                {points.map((pt, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-[#27352C] bg-[#1B241E] space-y-2 relative group"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className="w-6 h-6 rounded-md bg-[#101713] text-[#39E58C] text-xs font-bold flex items-center justify-center">
+                        {idx + 1}
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="e.g. Build core streaming engine with Redis"
+                        value={pt.title}
+                        onChange={(e) => updatePoint(idx, 'title', e.target.value)}
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-[#27352C] bg-[#101713] text-sm text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C]"
+                      />
+                      {points.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removePoint(idx)}
+                          className="text-[#98A69C] hover:text-red-400 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                    <input
+                      type="text"
+                      placeholder="Optional notes or target date..."
+                      value={pt.description || ''}
+                      onChange={(e) => updatePoint(idx, 'description', e.target.value)}
+                      className="w-full px-3 py-1 rounded-lg border border-[#27352C] bg-[#101713] text-xs text-[#98A69C] placeholder-[#98A69C]/40 focus:outline-none focus:border-[#39E58C]"
+                    />
                   </div>
-                </div>
-                <input
-                  type="checkbox"
-                  checked={wellnessEnabled}
-                  onChange={(e) => setWellnessEnabled(e.target.checked)}
-                  className="w-4 h-4 rounded text-sage-600 focus:ring-sage-500"
-                />
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={addPoint}
+                className="w-full py-2.5 rounded-xl border border-dashed border-[#27352C] hover:border-[#39E58C] text-[#39E58C] text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
+              >
+                <Plus className="w-4 h-4" /> Add Another Point
+              </button>
+
+              <div className="flex justify-between items-center pt-4 border-t border-[#27352C]">
+                <button
+                  type="button"
+                  onClick={() => setStep(2)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#27352C] text-[#98A69C] hover:text-[#F2F7F3] hover:border-[#39E58C] transition-colors flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" /> Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep(4)}
+                  className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-[#39E58C] text-[#0B0F0D] hover:bg-[#26C978] transition-colors flex items-center gap-2"
+                >
+                  Continue <ArrowRight className="w-4 h-4" />
+                </button>
               </div>
             </div>
+          )}
 
-            <div className="flex justify-between pt-4">
-              <Button variant="ghost" onClick={() => setStep(4)}>
-                Back
-              </Button>
-              <Button
-                variant="primary"
-                onClick={() => setStep(6)}
-                icon={<ArrowRight className="w-4 h-4" />}
+          {/* STEP 4: DAILY HABITS */}
+          {step === 4 && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                  Step 4 · Daily Rhythms
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F7F3] mt-1">
+                  Which habits do you want to build into your everyday life?
+                </h2>
+                <p className="text-sm text-[#98A69C] mt-2 leading-relaxed">
+                  Configure recurring habits, preferred days, and optional reward coins. You can also skip this and add them later.
+                </p>
+              </div>
+
+              <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
+                {habits.map((h, idx) => (
+                  <div
+                    key={idx}
+                    className="p-4 rounded-xl border border-[#27352C] bg-[#1B241E] space-y-3"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <input
+                        type="text"
+                        placeholder="e.g. 45 min deep technical reading"
+                        value={h.name}
+                        onChange={(e) => updateHabit(idx, 'name', e.target.value)}
+                        className="flex-1 px-3 py-1.5 rounded-lg border border-[#27352C] bg-[#101713] text-sm text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C]"
+                      />
+                      {habits.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => removeHabit(idx)}
+                          className="text-[#98A69C] hover:text-red-400 p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Shortcuts */}
+                    <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                      <span className="text-[#98A69C] mr-1">Repeat:</span>
+                      <button
+                        type="button"
+                        onClick={() => setHabitShortcut(idx, 'daily')}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
+                          h.frequency === 'DAILY'
+                            ? 'bg-[#1B3024] text-[#39E58C] border-[#39E58C]'
+                            : 'border-[#27352C] text-[#98A69C] hover:border-[#98A69C]'
+                        }`}
+                      >
+                        Every day
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHabitShortcut(idx, 'weekdays')}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
+                          h.frequency === 'WEEKDAYS'
+                            ? 'bg-[#1B3024] text-[#39E58C] border-[#39E58C]'
+                            : 'border-[#27352C] text-[#98A69C] hover:border-[#98A69C]'
+                        }`}
+                      >
+                        Weekdays
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setHabitShortcut(idx, 'weekends')}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium border ${
+                          h.selectedWeekdays === '6,7'
+                            ? 'bg-[#1B3024] text-[#39E58C] border-[#39E58C]'
+                            : 'border-[#27352C] text-[#98A69C] hover:border-[#98A69C]'
+                        }`}
+                      >
+                        Weekends
+                      </button>
+                    </div>
+
+                    {/* Day selection chips */}
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {WEEKDAYS.map((d) => {
+                        const isSelected = (h.selectedWeekdays || '')
+                          .split(',')
+                          .map(Number)
+                          .includes(d.id);
+                        return (
+                          <button
+                            key={d.id}
+                            type="button"
+                            onClick={() => toggleHabitDay(idx, d.id)}
+                            className={`w-8 h-8 rounded-lg text-xs font-semibold flex items-center justify-center transition-colors ${
+                              isSelected
+                                ? 'bg-[#39E58C] text-[#0B0F0D]'
+                                : 'bg-[#101713] text-[#98A69C] border border-[#27352C] hover:border-[#98A69C]'
+                            }`}
+                          >
+                            {d.label[0]}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Time & Coins */}
+                    <div className="grid grid-cols-2 gap-3 pt-1">
+                      <div>
+                        <label className="block text-[11px] text-[#98A69C] mb-1">Time (Optional)</label>
+                        <input
+                          type="time"
+                          value={h.scheduledTime || ''}
+                          onChange={(e) => updateHabit(idx, 'scheduledTime', e.target.value)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-[#27352C] bg-[#101713] text-xs text-[#F2F7F3]"
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[11px] text-[#98A69C] mb-1">Reward Coins</label>
+                        <input
+                          type="number"
+                          min={0}
+                          value={h.rewardCoins}
+                          onChange={(e) => updateHabit(idx, 'rewardCoins', parseInt(e.target.value, 10) || 0)}
+                          className="w-full px-2.5 py-1.5 rounded-lg border border-[#27352C] bg-[#101713] text-xs text-[#F2F7F3]"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={addHabit}
+                className="w-full py-2.5 rounded-xl border border-dashed border-[#27352C] hover:border-[#39E58C] text-[#39E58C] text-xs font-semibold flex items-center justify-center gap-2 transition-colors"
               >
-                Review & Launch
-              </Button>
-            </div>
-          </div>
-        )}
+                <Plus className="w-4 h-4" /> Add Another Habit
+              </button>
 
-        {/* Step 6: Starting Workspace Ready */}
-        {step === 6 && (
-          <div className="space-y-6 text-center animate-fade-in py-2">
-            <div className="w-14 h-14 rounded-3xl bg-sage-100 text-sage-700 flex items-center justify-center mx-auto mb-2 shadow-soft">
-              <CheckCircle2 className="w-8 h-8 text-sage-600" />
+              <div className="flex justify-between items-center pt-4 border-t border-[#27352C]">
+                <button
+                  type="button"
+                  onClick={() => setStep(3)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#27352C] text-[#98A69C] hover:text-[#F2F7F3] hover:border-[#39E58C] transition-colors flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" /> Back
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStep(5)}
+                  className="px-6 py-2.5 rounded-xl text-sm font-semibold bg-[#39E58C] text-[#0B0F0D] hover:bg-[#26C978] transition-colors flex items-center gap-2"
+                >
+                  Review & Confirm <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             </div>
+          )}
 
-            <h2 className="text-2xl font-bold text-charcoal-900">Your workspace is ready!</h2>
-            <p className="text-xs text-charcoal-600 max-w-sm mx-auto leading-relaxed">
-              We've created a clean, welcoming dashboard for you. No overwhelming flood of tasks—just
-              a calm space to show up every day.
-            </p>
+          {/* STEP 5: FINISH SETUP (SUMMARY) */}
+          {step === 5 && (
+            <div className="space-y-6 animate-fade-in">
+              <div>
+                <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                  Step 5 · Final Confirmation
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-extrabold text-[#F2F7F3] mt-1">
+                  Ready to show up for your future?
+                </h2>
+                <p className="text-sm text-[#98A69C] mt-2 leading-relaxed">
+                  Review the vision and commitments you personally entered. Everything can be updated anytime under Settings.
+                </p>
+              </div>
 
-            <div className="p-4 rounded-2xl bg-sage-50/80 border border-sage-200 text-left text-xs text-sage-900 space-y-1.5 max-w-sm mx-auto">
-              <div className="font-semibold text-sage-800">Your configuration:</div>
-              <div>• Horizon: {horizon.replace('_', ' ')}</div>
-              <div>• Focus duration: {focusDuration} minutes</div>
-              <div>• Week start: {weekStartDay}</div>
-              {dreamTitle && <div>• Initial dream: "{dreamTitle}"</div>}
+              <div className="space-y-4 max-h-[380px] overflow-y-auto pr-1">
+                {/* Life Purpose Summary */}
+                <div className="p-4 rounded-xl border border-[#27352C] bg-[#1B241E]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                      Ultimate Life Purpose
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(1)}
+                      className="text-xs text-[#39E58C] hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <p className="text-xs text-[#F2F7F3] leading-relaxed italic whitespace-pre-wrap">
+                    "{lifePurpose || 'No life purpose entered.'}"
+                  </p>
+                </div>
+
+                {/* Six-Month Goal Summary */}
+                <div className="p-4 rounded-xl border border-[#27352C] bg-[#1B241E]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                      Six-Month Goal
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(2)}
+                      className="text-xs text-[#39E58C] hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <h4 className="text-sm font-bold text-[#F2F7F3]">{goalTitle}</h4>
+                  {goalDesc && <p className="text-xs text-[#98A69C] mt-1">{goalDesc}</p>}
+                </div>
+
+                {/* Goal Points Summary */}
+                <div className="p-4 rounded-xl border border-[#27352C] bg-[#1B241E]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                      Goal Points ({points.filter((p) => p.title.trim()).length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(3)}
+                      className="text-xs text-[#39E58C] hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-[#F2F7F3]">
+                    {points
+                      .filter((p) => p.title.trim())
+                      .map((p, i) => (
+                        <li key={i} className="flex items-center gap-2">
+                          <Check className="w-3.5 h-3.5 text-[#39E58C]" />
+                          <span>{p.title}</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+
+                {/* Habits Summary */}
+                <div className="p-4 rounded-xl border border-[#27352C] bg-[#1B241E]">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold uppercase tracking-wider text-[#39E58C]">
+                      Daily Habits ({habits.filter((h) => h.name.trim()).length})
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setStep(4)}
+                      className="text-xs text-[#39E58C] hover:underline"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <ul className="space-y-1.5 text-xs text-[#F2F7F3]">
+                    {habits
+                      .filter((h) => h.name.trim())
+                      .map((h, i) => (
+                        <li key={i} className="flex items-center justify-between">
+                          <span className="flex items-center gap-2">
+                            <span className="w-1.5 h-1.5 rounded-full bg-[#39E58C]"></span>
+                            <span>{h.name}</span>
+                          </span>
+                          <span className="text-[11px] text-[#39E58C] font-mono">
+                            +{h.rewardCoins} 🪙
+                          </span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="flex justify-between items-center pt-4 border-t border-[#27352C]">
+                <button
+                  type="button"
+                  onClick={() => setStep(4)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold border border-[#27352C] text-[#98A69C] hover:text-[#F2F7F3] hover:border-[#39E58C] transition-colors flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" /> Back
+                </button>
+                <button
+                  type="button"
+                  disabled={submitting}
+                  onClick={handleFinish}
+                  className="px-8 py-2.5 rounded-xl text-sm font-semibold bg-[#39E58C] text-[#0B0F0D] hover:bg-[#26C978] transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {submitting ? 'Saving...' : 'Enter Dashboard'} <Check className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-
-            <div className="pt-4">
-              <Button
-                variant="primary"
-                size="lg"
-                className="w-full text-base font-bold"
-                onClick={handleFinishOnboarding}
-                loading={loading}
-              >
-                Enter DreamIITi Workspace
-              </Button>
-            </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
     </div>
   );

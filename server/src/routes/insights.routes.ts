@@ -15,4 +15,14 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next) => {
   }
 });
 
+router.get('/heatmap', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const today = typeof req.query.today === 'string' ? req.query.today : undefined;
+    const data = await InsightService.getContributionHeatmap(req.user!.id, today);
+    res.json({ success: true, ...data });
+  } catch (error) {
+    next(error);
+  }
+});
+
 export default router;

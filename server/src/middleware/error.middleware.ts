@@ -44,10 +44,7 @@ export const errorHandler = (
   console.error('[DreamIITi Error]:', err.message || err);
 
   const statusCode = err.status || err.statusCode || 500;
-  const message =
-    process.env.NODE_ENV === 'production' && statusCode === 500
-      ? 'An unexpected error occurred. Please try again later.'
-      : err.message || 'Internal Server Error';
+  const message = err.message || 'Internal Server Error';
 
   res.status(statusCode).json({
     success: false,

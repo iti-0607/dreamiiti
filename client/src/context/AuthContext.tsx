@@ -5,12 +5,14 @@ import { User } from '../types/index.js';
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  signup: (name: string, email: string, password: string, selectedAreas?: string[]) => Promise<void>;
+  login: (email: string, password: string) => Promise<User>;
+  signup: (name: string, email: string, password: string) => Promise<User>;
   logout: () => Promise<void>;
   updateProfile: (data: any) => Promise<void>;
   updateSettings: (data: any) => Promise<void>;
+  completeOnboarding: (data: any) => Promise<User>;
   refreshUser: () => Promise<void>;
+  updateCoinBalance: (balance: number) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -39,20 +41,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshUser();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = async (email: string, password: string): Promise<User> => {
     const res = await api.post('/auth/login', { email, password });
     if (res.token) {
       localStorage.setItem('dream_token', res.token);
     }
     setUser(res.user);
+    return res.user;
   };
 
-  const signup = async (name: string, email: string, password: string, selectedAreas?: string[]) => {
-    const res = await api.post('/auth/signup', { name, email, password, selectedAreas });
+  const signup = async (name: string, email: string, password: string): Promise<User> => {
+    const res = await api.post('/auth/signup', { name, email, password });
     if (res.token) {
       localStorage.setItem('dream_token', res.token);
     }
     setUser(res.user);
+    return res.user;
   };
 
   const logout = async () => {
@@ -63,6 +67,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
     localStorage.removeItem('dream_token');
     setUser(null);
+  };
+
+  const completeOnboarding = async (data: any): Promise<User> => {
+    const res = await api.post('/auth/onboarding', data);
+    if (res.success && res.user) {
+      setUser(res.user);
+      return res.user;
+    }
+    throw new Error(res.error || 'Failed to complete onboarding');
   };
 
   const updateProfile = async (data: any) => {
@@ -79,6 +92,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const updateCoinBalance = (balance: number) => {
+    setUser((prev) => (prev ? { ...prev, coinBalance: balance } : null));
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -89,7 +106,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         logout,
         updateProfile,
         updateSettings,
+        completeOnboarding,
         refreshUser,
+        updateCoinBalance,
       }}
     >
       {children}

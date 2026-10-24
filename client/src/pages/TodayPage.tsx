@@ -86,6 +86,7 @@ export const TodayPage: React.FC = () => {
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
       queryClient.invalidateQueries({ queryKey: ['goals'] });
       queryClient.invalidateQueries({ queryKey: ['insights'] });
+      queryClient.invalidateQueries({ queryKey: ['heatmap'] });
       if (data?.task?.status === 'COMPLETED') {
         confetti({
           particleCount: 50,
@@ -277,7 +278,7 @@ export const TodayPage: React.FC = () => {
 
             {topPriorities.length === 0 ? (
               <div className="text-center py-6 text-charcoal-400 text-xs">
-                No priorities scheduled for today. Add a task below to begin!
+                Your plan, your pace. Add the tasks you want to work on.
               </div>
             ) : (
               <div className="space-y-2.5">

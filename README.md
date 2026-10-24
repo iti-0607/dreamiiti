@@ -138,10 +138,11 @@ npm run build
 - Live progress calculations based on milestones and linked tasks.
 - Grid & list view with status filtering (Active, Paused, Completed, Archived).
 
-### 3. Goal Decomposition Engine (`/app/goals`)
+### 3. User-Owned Goals & Milestones (`/app/goals`)
 - Hierarchy: **Dream → Goal → Milestone → Task → Subtask**.
-- **AI & Deterministic Goal Decomposer**: Type any natural language goal (e.g. *"I want to build a strong backend project in two months"*) to automatically generate 4 progressive milestones, 5-minute doorway steps, and 25% restorative buffer time.
-- Works 100% offline out-of-the-box without requiring a paid API key.
+- **User-Owned Planning Principle**: All goals, milestones, tasks, and calendar schedules are created and controlled by the user. AI never invents, populates, or mutates planning records.
+- Support for yearly, 6-month, monthly, and weekly planning horizons.
+- Manual milestone addition, task creation, subtask tracking, and direct-to-calendar scheduling.
 
 ### 4. Flexible Calendar & Timetable (`/app/calendar`)
 - Day, Week, Month, and Agenda views.

@@ -15,19 +15,11 @@ import { ForgotPasswordPage } from './pages/ForgotPasswordPage.js';
 import { ResetPasswordPage } from './pages/ResetPasswordPage.js';
 import { OnboardingPage } from './pages/OnboardingPage.js';
 
-// Authenticated Pages
-import { TodayPage } from './pages/TodayPage.js';
+// Authenticated Core Pages
 import { DashboardPage } from './pages/DashboardPage.js';
-import { DreamsPage } from './pages/DreamsPage.js';
-import { DreamDetailPage } from './pages/DreamDetailPage.js';
 import { GoalsPage } from './pages/GoalsPage.js';
-import { TasksPage } from './pages/TasksPage.js';
-import { CalendarPage } from './pages/CalendarPage.js';
 import { HabitsPage } from './pages/HabitsPage.js';
-import { FocusPage } from './pages/FocusPage.js';
-import { WellnessPage } from './pages/WellnessPage.js';
-import { ReviewsPage } from './pages/ReviewsPage.js';
-import { InsightsPage } from './pages/InsightsPage.js';
+import { CalendarPage } from './pages/CalendarPage.js';
 import { SettingsPage } from './pages/SettingsPage.js';
 
 const queryClient = new QueryClient({
@@ -55,25 +47,26 @@ export const App: React.FC = () => {
               <Route path="/reset-password" element={<ResetPasswordPage />} />
               <Route path="/onboarding" element={<OnboardingPage />} />
 
-              {/* Authenticated Application Routes */}
+              {/* Authenticated Application Routes (Exact 5 Discipline Pillars) */}
               <Route path="/app" element={<AppShell />}>
-                <Route index element={<Navigate to="/app/today" replace />} />
-                <Route path="today" element={<TodayPage />} />
+                <Route index element={<Navigate to="/app/dashboard" replace />} />
                 <Route path="dashboard" element={<DashboardPage />} />
-                <Route path="dreams" element={<DreamsPage />} />
-                <Route path="dreams/new" element={<DreamsPage />} />
-                <Route path="dreams/:dreamId" element={<DreamDetailPage />} />
                 <Route path="goals" element={<GoalsPage />} />
                 <Route path="goals/:goalId" element={<GoalsPage />} />
-                <Route path="tasks" element={<TasksPage />} />
-                <Route path="calendar" element={<CalendarPage />} />
                 <Route path="habits" element={<HabitsPage />} />
-                <Route path="focus" element={<FocusPage />} />
-                <Route path="wellness" element={<WellnessPage />} />
-                <Route path="reviews" element={<ReviewsPage />} />
-                <Route path="insights" element={<InsightsPage />} />
+                <Route path="calendar" element={<CalendarPage />} />
                 <Route path="settings" element={<SettingsPage />} />
-                <Route path="settings/security" element={<SettingsPage />} />
+                <Route path="settings/*" element={<SettingsPage />} />
+
+                {/* Legacy route redirects to simplified pillars */}
+                <Route path="today" element={<Navigate to="/app/dashboard" replace />} />
+                <Route path="tasks" element={<Navigate to="/app/dashboard" replace />} />
+                <Route path="dreams" element={<Navigate to="/app/goals" replace />} />
+                <Route path="dreams/*" element={<Navigate to="/app/goals" replace />} />
+                <Route path="focus" element={<Navigate to="/app/calendar" replace />} />
+                <Route path="wellness" element={<Navigate to="/app/habits" replace />} />
+                <Route path="reviews" element={<Navigate to="/app/dashboard" replace />} />
+                <Route path="insights" element={<Navigate to="/app/dashboard" replace />} />
               </Route>
 
               {/* Catch-all redirect */}

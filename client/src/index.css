@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Newsreader:ital,opsz,wght@0,6..72,400..600;1,6..72,400..600&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -6,61 +6,67 @@
 
 @layer base {
   :root {
-    --bg-page: #FBF9F5;
-    --card-bg: #FFFFFF;
-    --border-subtle: #EBE7DE;
-    --text-primary: #1F232B;
-    --text-secondary: #5B6371;
-    --text-muted: #8A92A0;
-    --accent-sage: #2E6F52;
-    --accent-lavender: #8E82B6;
-    --accent-amber: #E5A93C;
+    --bg-page: #0B0F0D;
+    --sidebar-bg: #101713;
+    --card-bg: #151C17;
+    --elevated-bg: #1B241E;
+    --surface-muted: #1B3024;
+    --border-color: #27352C;
+    --text-primary: #F2F7F3;
+    --text-secondary: #98A69C;
+    --primary-green: #39E58C;
+    --hover-green: #26C978;
   }
 
   body {
-    background-color: var(--bg-page);
-    color: var(--text-primary);
+    background-color: #0B0F0D;
+    color: #F2F7F3;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     min-height: 100vh;
   }
 
-  /* Custom subtle scrollbar */
+  /* Custom subtle dark scrollbar */
   ::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
   ::-webkit-scrollbar-track {
-    background: transparent;
+    background: #0B0F0D;
   }
   ::-webkit-scrollbar-thumb {
-    background: #D8D3C8;
+    background: #27352C;
     border-radius: 9999px;
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #BEB7A9;
+    background: #39E58C;
   }
 }
 
-/* Organic Garden & Focus Glows */
-.garden-card {
-  background: radial-gradient(circle at top right, rgba(226, 239, 231, 0.45), transparent 70%), #FFFFFF;
+/* Developer-grade dark surfaces & borders */
+.discipline-card {
+  background-color: #151C17;
+  border: 1px solid #27352C;
 }
 
-.focus-glow {
-  box-shadow: 0 0 35px -5px rgba(46, 111, 82, 0.25);
+.discipline-card-elevated {
+  background-color: #1B241E;
+  border: 1px solid #27352C;
+}
+
+.green-glow {
+  box-shadow: 0 0 20px -3px rgba(57, 229, 140, 0.2);
 }
 
 .subtle-border {
-  border-color: #EBE7DE;
+  border-color: #27352C;
 }
 
-/* Interactive card hover */
-.interactive-card {
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+/* Smooth interactive transitions */
+.interactive-row {
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
-.interactive-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 24px -4px rgba(28, 30, 33, 0.08);
+.interactive-row:hover {
+  background-color: #1B241E;
 }

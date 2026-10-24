@@ -77,6 +77,15 @@ router.patch('/:id/toggle', async (req: AuthenticatedRequest, res: Response, nex
   }
 });
 
+router.put('/:id/toggle', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const task = await TaskService.toggleTaskCompletion(req.user!.id, req.params.id);
+    res.json({ success: true, task });
+  } catch (error) {
+    next(error);
+  }
+});
+
 // Subtask routes
 router.post('/:id/subtasks', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
@@ -93,6 +102,15 @@ router.post('/:id/subtasks', async (req: AuthenticatedRequest, res: Response, ne
 });
 
 router.patch('/subtasks/:subtaskId/toggle', async (req: AuthenticatedRequest, res: Response, next) => {
+  try {
+    const subtask = await TaskService.toggleSubtask(req.user!.id, req.params.subtaskId);
+    res.json({ success: true, subtask });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.put('/subtasks/:subtaskId/toggle', async (req: AuthenticatedRequest, res: Response, next) => {
   try {
     const subtask = await TaskService.toggleSubtask(req.user!.id, req.params.subtaskId);
     res.json({ success: true, subtask });

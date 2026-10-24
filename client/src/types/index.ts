@@ -4,6 +4,15 @@ export interface User {
   email: string;
   avatarUrl?: string | null;
   timezone: string;
+  lifePurpose?: string | null;
+  sixMonthGoalTitle?: string | null;
+  sixMonthGoalDesc?: string | null;
+  sixMonthGoalTarget?: string | null;
+  onboardingCompleted: boolean;
+  coinBalance: number;
+  defaultTaskReward: number;
+  defaultPenalty: number;
+  defaultPenaltyEnabled: boolean;
   profile?: UserProfile | null;
   settings?: UserSettings | null;
 }
@@ -26,62 +35,8 @@ export interface UserSettings {
   weeklyReviewDay: string;
 }
 
-export interface LifeArea {
+export interface GoalPoint {
   id: string;
-  name: string;
-  color: string;
-  icon: string;
-  isSystem: boolean;
-}
-
-export interface Dream {
-  id: string;
-  userId: string;
-  lifeAreaId?: string | null;
-  lifeArea?: LifeArea | null;
-  title: string;
-  description?: string | null;
-  motivation?: string | null;
-  timeframe?: string | null;
-  targetDate?: string | null;
-  status: 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'ARCHIVED';
-  coverColor: string;
-  priority: 'LOW' | 'MEDIUM' | 'HIGH';
-  successCriteria?: string | null;
-  progress: number;
-  goalsCount?: number;
-  milestonesCount?: number;
-  tasksCount?: number;
-  completedTasksCount?: number;
-  goals?: Goal[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Goal {
-  id: string;
-  userId: string;
-  dreamId?: string | null;
-  dream?: { id: string; title: string; coverColor: string } | null;
-  title: string;
-  description?: string | null;
-  horizon: 'YEARLY' | 'MONTHLY' | 'WEEKLY' | 'DAILY';
-  startDate?: string | null;
-  targetDate?: string | null;
-  importance: 'LOW' | 'MEDIUM' | 'HIGH';
-  estimatedHours: number;
-  successCriteria?: string | null;
-  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED' | 'PAUSED' | 'CANCELLED';
-  progress: number;
-  milestones?: Milestone[];
-  tasks?: Task[];
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface Milestone {
-  id: string;
-  goalId: string;
   title: string;
   description?: string | null;
   targetDate?: string | null;
@@ -89,6 +44,15 @@ export interface Milestone {
   isCompleted: boolean;
   completedAt?: string | null;
   tasks?: Task[];
+}
+
+export interface SixMonthOverview {
+  lifePurpose?: string | null;
+  sixMonthGoalTitle?: string | null;
+  sixMonthGoalDesc?: string | null;
+  sixMonthGoalTarget?: string | null;
+  progress: number;
+  points: GoalPoint[];
 }
 
 export interface Subtask {
@@ -97,29 +61,6 @@ export interface Subtask {
   title: string;
   isCompleted: boolean;
   order: number;
-}
-
-export interface Task {
-  id: string;
-  userId: string;
-  goalId?: string | null;
-  goal?: { id: string; title: string; dream?: { coverColor: string } | null } | null;
-  milestoneId?: string | null;
-  milestone?: { id: string; title: string } | null;
-  title: string;
-  description?: string | null;
-  status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED';
-  priority: 'MUST_DO' | 'SHOULD_DO' | 'OPTIONAL';
-  dueDate?: string | null;
-  scheduledStart?: string | null;
-  scheduledEnd?: string | null;
-  estimatedMinutes: number;
-  actualMinutes: number;
-  tags?: string | null;
-  completedAt?: string | null;
-  subtaskItems?: Subtask[];
-  scheduledBlocks?: ScheduledBlock[];
-  createdAt: string;
 }
 
 export interface ScheduledBlock {
@@ -135,6 +76,34 @@ export interface ScheduledBlock {
   isOverride: boolean;
 }
 
+export interface Task {
+  id: string;
+  userId: string;
+  goalId?: string | null;
+  goal?: any;
+  milestoneId?: string | null;
+  goalPointId?: string | null;
+  goalPoint?: { id: string; title: string } | null;
+  title: string;
+  description?: string | null;
+  status: 'TODO' | 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED' | 'BLOCKED';
+  priority: 'MUST_DO' | 'SHOULD_DO' | 'OPTIONAL';
+  dueDate?: string | null;
+  scheduledStart?: string | null;
+  scheduledEnd?: string | null;
+  estimatedMinutes: number;
+  actualMinutes: number;
+  tags?: string | null;
+  rewardCoins: number;
+  penaltyCoins: number;
+  penaltyEnabled: boolean;
+  rewardAwarded: boolean;
+  completedAt?: string | null;
+  subtaskItems?: Subtask[];
+  scheduledBlocks?: ScheduledBlock[];
+  createdAt: string;
+}
+
 export interface Habit {
   id: string;
   userId: string;
@@ -144,7 +113,11 @@ export interface Habit {
   frequency: 'DAILY' | 'WEEKDAYS' | 'WEEKLY' | 'CUSTOM';
   targetDaysPerWeek: number;
   selectedWeekdays?: string | null;
+  scheduledTime?: string | null;
   reminderTime?: string | null;
+  rewardCoins: number;
+  penaltyCoins: number;
+  penaltyEnabled: boolean;
   status: 'ACTIVE' | 'PAUSED' | 'ARCHIVED';
   currentStreak: number;
   bestStreak: number;
@@ -152,7 +125,6 @@ export interface Habit {
   isCompletedToday?: boolean;
   logsCount?: number;
   logs?: HabitLog[];
-  lifeArea?: LifeArea | null;
 }
 
 export interface HabitLog {
@@ -160,49 +132,113 @@ export interface HabitLog {
   habitId: string;
   date: string;
   isCompleted: boolean;
+  coinsAwarded?: number;
+  rewardAwarded?: boolean;
 }
 
-export interface FocusSession {
+export interface CoinTransaction {
   id: string;
+  userId: string;
+  amount: number;
+  type: 'REWARD' | 'PENALTY' | 'REDEMPTION' | 'ADJUSTMENT';
+  description: string;
   taskId?: string | null;
-  task?: { title: string } | null;
-  targetMinutes: number;
-  actualMinutes: number;
-  startedAt: string;
-  endedAt?: string | null;
-  status: 'COMPLETED' | 'STOPPED_EARLY' | 'CANCELLED';
-  notes?: string | null;
+  habitId?: string | null;
+  rewardId?: string | null;
+  createdAt: string;
 }
 
-export interface MoodEntry {
-  id: string;
-  date: string;
-  mood: string;
-  energy: string;
-  stress?: string | null;
-  notes?: string | null;
+export interface CoinLedger {
+  balance: number;
+  defaultTaskReward: number;
+  defaultPenalty: number;
+  defaultPenaltyEnabled: boolean;
+  totalEarned: number;
+  totalSpent: number;
+  totalPenalties: number;
+  transactions: CoinTransaction[];
 }
 
-export interface JournalEntry {
+export interface PersonalReward {
   id: string;
+  name: string;
+  title?: string;
+  description?: string | null;
+  coinCost: number;
+  icon: string;
+  active: boolean;
+  _count?: { redemptions: number };
+}
+
+export interface HeatmapDay {
   date: string;
-  prompt?: string | null;
-  content: string;
-  tags?: string | null;
+  dayOfWeek: number;
+  tasksCompleted: number;
+  tasksScheduled: number;
+  habitsCompleted: number;
+  habitsExpected: number;
+  coinsEarned: number;
+  totalActivity: number;
+  level: number;
+  isToday?: boolean;
+}
+
+export interface HeatmapResponse {
+  days: HeatmapDay[];
+  currentStreak: number;
+  longestStreak: number;
+  activeDays: number;
+  totalCompletedTasks: number;
+  today?: string;
+  todayActive?: boolean;
+  todayCompletedCount?: number;
+}
+
+// Legacy type compatibility
+export interface Dream {
+  id: string;
+  title: string;
+  description?: string | null;
+  status: string;
+  category: string;
+  lifeAreaId?: string | null;
+  lifeArea?: any;
+  motivation?: string | null;
+  goalsCount?: number;
+  completedTasksCount?: number;
+  tasksCount?: number;
+  coverColor?: any;
+  progress: number;
+  goals?: any[];
+  milestones?: any[];
   createdAt: string;
   updatedAt: string;
 }
 
 export interface WeeklyReview {
   id: string;
+  userId: string;
   weekStartDate: string;
-  plannedTasksCount: number;
-  completedTasksCount: number;
-  habitRate: number;
-  focusMinutes: number;
+  weekEndDate: string;
   wins?: string | null;
-  struggles?: string | null;
-  continuationNotes?: string | null;
+  challenges?: string | null;
+  learnings?: string | null;
+  rating?: number | null;
+  completedTasksCount?: number;
+  habitRate?: number;
+  focusMinutes?: number;
   nextWeekPriorities?: string | null;
   createdAt: string;
 }
+
+export interface JournalEntry {
+  id: string;
+  userId: string;
+  date: string;
+  content: string;
+  prompt?: string | null;
+  mood?: string | null;
+  tags?: string | null;
+  createdAt: string;
+}
+

@@ -1,84 +1,105 @@
 import React, { useState } from 'react';
 import { Modal } from './Modal.js';
-import { Button } from './Button.js';
 import { api } from '../../api/client.js';
 import { useNotification } from '../../context/NotificationContext.js';
+import { useAuth } from '../../context/AuthContext.js';
 import { useQueryClient, useQuery } from '@tanstack/react-query';
-import { CheckSquare, Sparkles, Sprout, Calendar } from 'lucide-react';
+import { Clock, Calendar, Coins, ShieldAlert, Target } from 'lucide-react';
 
 interface QuickAddModalProps {
   isOpen: boolean;
   onClose: () => void;
+  defaultDate?: string;
+  defaultGoalPointId?: string;
 }
 
-export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose }) => {
-  const [tab, setTab] = useState<'task' | 'dream' | 'habit' | 'block'>('task');
-  const [loading, setLoading] = useState(false);
+export const QuickAddModal: React.FC<QuickAddModalProps> = ({
+  isOpen,
+  onClose,
+  defaultDate,
+  defaultGoalPointId,
+}) => {
+  const { user } = useAuth();
   const { success, error } = useNotification();
   const queryClient = useQueryClient();
 
-  // Load user dreams and goals for dropdown options
-  const { data: dreamsData } = useQuery({
-    queryKey: ['dreams'],
-    queryFn: () => api.get('/dreams'),
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+  const [date, setDate] = useState(defaultDate || todayStr);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [priority, setTaskPriority] = useState('SHOULD_DO');
+  const [goalPointId, setGoalPointId] = useState(defaultGoalPointId || '');
+  const [rewardCoins, setRewardCoins] = useState(user?.defaultTaskReward ?? 10);
+  const [penaltyEnabled, setPenaltyEnabled] = useState(user?.defaultPenaltyEnabled ?? false);
+  const [penaltyCoins, setPenaltyCoins] = useState(user?.defaultPenalty ?? 5);
+  const [loading, setLoading] = useState(false);
+
+  // Fetch goal points
+  const { data: goalPointsData } = useQuery({
+    queryKey: ['goal-points-overview'],
+    queryFn: () => api.get('/goals/points/overview'),
     enabled: isOpen,
   });
 
-  const { data: goalsData } = useQuery({
-    queryKey: ['goals'],
-    queryFn: () => api.get('/goals'),
-    enabled: isOpen,
-  });
-
-  // Task Form State
-  const [taskTitle, setTaskTitle] = useState('');
-  const [taskPriority, setTaskPriority] = useState('SHOULD_DO');
-  const [taskDueDate, setTaskDueDate] = useState(new Date().toISOString().split('T')[0]);
-  const [taskMinutes, setTaskMinutes] = useState(30);
-  const [taskGoalId, setTaskGoalId] = useState('');
-
-  // Dream Form State
-  const [dreamTitle, setDreamTitle] = useState('');
-  const [dreamMotivation, setDreamMotivation] = useState('');
-  const [dreamTimeframe, setDreamTimeframe] = useState('3_months');
-
-  // Habit Form State
-  const [habitName, setHabitName] = useState('');
-  const [habitFrequency, setHabitFrequency] = useState('DAILY');
-
-  // Calendar Block Form State
-  const [blockTitle, setBlockTitle] = useState('');
-  const [blockStartTime, setBlockStartTime] = useState(
-    new Date(Date.now() + 1000 * 60 * 30).toISOString().slice(0, 16)
-  );
-  const [blockEndTime, setBlockEndTime] = useState(
-    new Date(Date.now() + 1000 * 60 * 90).toISOString().slice(0, 16)
-  );
-
-  const resetForms = () => {
-    setTaskTitle('');
-    setDreamTitle('');
-    setDreamMotivation('');
-    setHabitName('');
-    setBlockTitle('');
+  const resetForm = () => {
+    setTitle('');
+    setDescription('');
+    setDate(todayStr);
+    setStartTime('');
+    setEndTime('');
+    setTaskPriority('SHOULD_DO');
+    setGoalPointId('');
+    setRewardCoins(user?.defaultTaskReward ?? 10);
+    setPenaltyEnabled(user?.defaultPenaltyEnabled ?? false);
+    setPenaltyCoins(user?.defaultPenalty ?? 5);
   };
 
-  const handleCreateTask = async (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!taskTitle.trim()) return;
+    if (!title.trim()) return;
+
+    // Validate times if both provided
+    if (startTime && endTime && endTime <= startTime) {
+      error('End time must be later than start time.');
+      return;
+    }
+
     setLoading(true);
     try {
+      // Build ISO timestamps if start/end times provided with date
+      let scheduledStart: string | undefined = undefined;
+      let scheduledEnd: string | undefined = undefined;
+
+      if (startTime && date) {
+        scheduledStart = new Date(`${date}T${startTime}:00`).toISOString();
+      }
+      if (endTime && date) {
+        scheduledEnd = new Date(`${date}T${endTime}:00`).toISOString();
+      }
+
       await api.post('/tasks', {
-        title: taskTitle.trim(),
-        priority: taskPriority,
-        dueDate: taskDueDate || null,
-        estimatedMinutes: Number(taskMinutes),
-        goalId: taskGoalId || null,
+        title: title.trim(),
+        description: description.trim() || undefined,
+        dueDate: date ? new Date(`${date}T23:59:59`).toISOString() : undefined,
+        scheduledStart,
+        scheduledEnd,
+        priority,
+        goalPointId: goalPointId || undefined,
+        rewardCoins: Number(rewardCoins) || 0,
+        penaltyEnabled: Boolean(penaltyEnabled),
+        penaltyCoins: penaltyEnabled ? Number(penaltyCoins) || 0 : 0,
       });
-      success('Task added to your plan!');
+
+      success('Task created successfully');
       queryClient.invalidateQueries({ queryKey: ['tasks'] });
-      queryClient.invalidateQueries({ queryKey: ['goals'] });
-      resetForms();
+      queryClient.invalidateQueries({ queryKey: ['calendar-blocks'] });
+      queryClient.invalidateQueries({ queryKey: ['heatmap'] });
+      queryClient.invalidateQueries({ queryKey: ['goal-points-overview'] });
+
+      resetForm();
       onClose();
     } catch (err: any) {
       error(err.message || 'Failed to create task');
@@ -87,368 +108,179 @@ export const QuickAddModal: React.FC<QuickAddModalProps> = ({ isOpen, onClose })
     }
   };
 
-  const handleCreateDream = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!dreamTitle.trim()) return;
-    setLoading(true);
-    try {
-      await api.post('/dreams', {
-        title: dreamTitle.trim(),
-        motivation: dreamMotivation.trim(),
-        timeframe: dreamTimeframe,
-      });
-      success('New dream planted in your vault!');
-      queryClient.invalidateQueries({ queryKey: ['dreams'] });
-      resetForms();
-      onClose();
-    } catch (err: any) {
-      error(err.message || 'Failed to create dream');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateHabit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!habitName.trim()) return;
-    setLoading(true);
-    try {
-      await api.post('/habits', {
-        name: habitName.trim(),
-        frequency: habitFrequency,
-      });
-      success('Habit added to your garden!');
-      queryClient.invalidateQueries({ queryKey: ['habits'] });
-      resetForms();
-      onClose();
-    } catch (err: any) {
-      error(err.message || 'Failed to create habit');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleCreateBlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!blockTitle.trim()) return;
-    setLoading(true);
-    try {
-      const res = await api.post('/calendar/blocks', {
-        title: blockTitle.trim(),
-        startTime: blockStartTime,
-        endTime: blockEndTime,
-      });
-      if (res.hasConflict) {
-        error(res.warning || 'Time slot overlaps with an existing block');
-      } else {
-        success('Time block scheduled on calendar!');
-        queryClient.invalidateQueries({ queryKey: ['calendar-blocks'] });
-        resetForms();
-        onClose();
-      }
-    } catch (err: any) {
-      error(err.message || 'Failed to schedule block');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   return (
-    <Modal isOpen={isOpen} onClose={onClose} title="Add New Action" maxWidth="lg">
-      {/* Tabs */}
-      <div className="flex items-center gap-1.5 p-1 bg-ivory-100 rounded-xl mb-5">
-        <button
-          type="button"
-          onClick={() => setTab('task')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${
-            tab === 'task'
-              ? 'bg-white text-sage-800 shadow-sm'
-              : 'text-charcoal-500 hover:text-charcoal-800'
-          }`}
-        >
-          <CheckSquare className="w-3.5 h-3.5 text-sage-600" />
-          Task
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('dream')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${
-            tab === 'dream'
-              ? 'bg-white text-lavender-800 shadow-sm'
-              : 'text-charcoal-500 hover:text-charcoal-800'
-          }`}
-        >
-          <Sparkles className="w-3.5 h-3.5 text-lavender-600" />
-          Dream
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('habit')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${
-            tab === 'habit'
-              ? 'bg-white text-emerald-800 shadow-sm'
-              : 'text-charcoal-500 hover:text-charcoal-800'
-          }`}
-        >
-          <Sprout className="w-3.5 h-3.5 text-emerald-600" />
-          Habit
-        </button>
-        <button
-          type="button"
-          onClick={() => setTab('block')}
-          className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-semibold transition-all ${
-            tab === 'block'
-              ? 'bg-white text-amber-800 shadow-sm'
-              : 'text-charcoal-500 hover:text-charcoal-800'
-          }`}
-        >
-          <Calendar className="w-3.5 h-3.5 text-amber-600" />
-          Time Block
-        </button>
-      </div>
+    <Modal isOpen={isOpen} onClose={onClose} title="Add New Task" maxWidth="md">
+      <form onSubmit={handleSubmit} className="space-y-4 text-[#F2F7F3]">
+        {/* Title */}
+        <div>
+          <label className="block text-xs font-semibold text-[#98A69C] mb-1">
+            Task Title <span className="text-[#39E58C]">*</span>
+          </label>
+          <input
+            type="text"
+            required
+            autoFocus
+            placeholder="What needs to be done?"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            className="w-full px-3.5 py-2 rounded-xl border border-[#27352C] bg-[#1B241E] text-sm text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C] focus:ring-1 focus:ring-[#39E58C]"
+          />
+        </div>
 
-      {/* Task Form */}
-      {tab === 'task' && (
-        <form onSubmit={handleCreateTask} className="space-y-4">
+        {/* Description */}
+        <div>
+          <label className="block text-xs font-semibold text-[#98A69C] mb-1">
+            Description (Optional)
+          </label>
+          <textarea
+            rows={2}
+            placeholder="Add context or notes..."
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className="w-full px-3.5 py-2 rounded-xl border border-[#27352C] bg-[#1B241E] text-xs text-[#F2F7F3] placeholder-[#98A69C]/50 focus:outline-none focus:border-[#39E58C] focus:ring-1 focus:ring-[#39E58C] resize-y"
+          />
+        </div>
+
+        {/* Date & Priority */}
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-              Task Title *
+            <label className="block text-xs font-semibold text-[#98A69C] mb-1">
+              Date
             </label>
             <input
-              type="text"
-              required
-              placeholder="e.g. Outline chapter 1 notes"
-              value={taskTitle}
-              onChange={(e) => setTaskTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-[#27352C] bg-[#1B241E] text-xs text-[#F2F7F3] focus:outline-none focus:border-[#39E58C]"
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                Priority
-              </label>
-              <select
-                value={taskPriority}
-                onChange={(e) => setTaskPriority(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
-              >
-                <option value="MUST_DO">Must-Do (Core Priority)</option>
-                <option value="SHOULD_DO">Should-Do (Important)</option>
-                <option value="OPTIONAL">Optional (If Time Allows)</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                Est. Duration
-              </label>
-              <select
-                value={taskMinutes}
-                onChange={(e) => setTaskMinutes(Number(e.target.value))}
-                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
-              >
-                <option value={15}>15 minutes</option>
-                <option value={30}>30 minutes</option>
-                <option value={45}>45 minutes</option>
-                <option value={60}>1 hour</option>
-                <option value={90}>1.5 hours</option>
-              </select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                Due Date
-              </label>
-              <input
-                type="date"
-                value={taskDueDate}
-                onChange={(e) => setTaskDueDate(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                Attach to Goal
-              </label>
-              <select
-                value={taskGoalId}
-                onChange={(e) => setTaskGoalId(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white truncate"
-              >
-                <option value="">No parent goal (General task)</option>
-                {goalsData?.goals?.map((g: any) => (
-                  <option key={g.id} value={g.id}>
-                    {g.title}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="flex justify-end gap-2.5 pt-2">
-            <Button variant="secondary" type="button" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" type="submit" loading={loading}>
-              Create Task
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {/* Dream Form */}
-      {tab === 'dream' && (
-        <form onSubmit={handleCreateDream} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-              Dream Title *
-            </label>
-            <input
-              type="text"
-              required
-              placeholder="e.g. Master distributed systems or Run a marathon"
-              value={dreamTitle}
-              onChange={(e) => setDreamTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-              Why this matters to me (Motivation)
-            </label>
-            <textarea
-              rows={2}
-              placeholder="What makes this meaningful? How will achieving this feel?"
-              value={dreamMotivation}
-              onChange={(e) => setDreamMotivation(e.target.value)}
-              className="w-full px-3.5 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-              Target Horizon
+            <label className="block text-xs font-semibold text-[#98A69C] mb-1">
+              Priority
             </label>
             <select
-              value={dreamTimeframe}
-              onChange={(e) => setDreamTimeframe(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
+              value={priority}
+              onChange={(e) => setTaskPriority(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-[#27352C] bg-[#1B241E] text-xs text-[#F2F7F3] focus:outline-none focus:border-[#39E58C]"
             >
-              <option value="1_month">1 Month</option>
-              <option value="3_months">3 Months</option>
-              <option value="6_months">6 Months</option>
-              <option value="1_year">1 Year</option>
+              <option value="MUST_DO">Must Do (Critical)</option>
+              <option value="SHOULD_DO">Should Do (Standard)</option>
+              <option value="OPTIONAL">Optional (Low)</option>
             </select>
           </div>
+        </div>
 
-          <div className="flex justify-end gap-2.5 pt-2">
-            <Button variant="secondary" type="button" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="lavender" type="submit" loading={loading}>
-              Plant Dream
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {/* Habit Form */}
-      {tab === 'habit' && (
-        <form onSubmit={handleCreateHabit} className="space-y-4">
+        {/* Optional Times */}
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-              Habit Name *
+            <label className="block text-xs font-semibold text-[#98A69C] mb-1">
+              Start Time (Optional)
             </label>
             <input
-              type="text"
-              required
-              placeholder="e.g. Morning hydration & stretch (10m)"
-              value={habitName}
-              onChange={(e) => setHabitName(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+              type="time"
+              value={startTime}
+              onChange={(e) => setStartTime(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-[#27352C] bg-[#1B241E] text-xs text-[#F2F7F3] focus:outline-none focus:border-[#39E58C]"
             />
           </div>
-          <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-              Frequency
-            </label>
-            <select
-              value={habitFrequency}
-              onChange={(e) => setHabitFrequency(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
-            >
-              <option value="DAILY">Every Day</option>
-              <option value="WEEKDAYS">Weekdays (Mon - Fri)</option>
-              <option value="WEEKLY">3-4 Times a Week</option>
-            </select>
-          </div>
 
-          <div className="flex justify-end gap-2.5 pt-2">
-            <Button variant="secondary" type="button" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="primary" type="submit" loading={loading}>
-              Cultivate Habit
-            </Button>
-          </div>
-        </form>
-      )}
-
-      {/* Calendar Block Form */}
-      {tab === 'block' && (
-        <form onSubmit={handleCreateBlock} className="space-y-4">
           <div>
-            <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-              Block Title *
+            <label className="block text-xs font-semibold text-[#98A69C] mb-1">
+              End Time (Optional)
             </label>
             <input
-              type="text"
-              required
-              placeholder="e.g. Deep Focus: Algorithm problem solving"
-              value={blockTitle}
-              onChange={(e) => setBlockTitle(e.target.value)}
-              className="w-full px-3.5 py-2.5 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500"
+              type="time"
+              value={endTime}
+              onChange={(e) => setEndTime(e.target.value)}
+              className="w-full px-3 py-2 rounded-xl border border-[#27352C] bg-[#1B241E] text-xs text-[#F2F7F3] focus:outline-none focus:border-[#39E58C]"
             />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                Start Time
-              </label>
-              <input
-                type="datetime-local"
-                required
-                value={blockStartTime}
-                onChange={(e) => setBlockStartTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
-              />
+        </div>
+
+        {/* Link to Six-Month Goal Point */}
+        <div>
+          <label className="block text-xs font-semibold text-[#98A69C] mb-1">
+            Related Six-Month Goal Point (Optional)
+          </label>
+          <select
+            value={goalPointId}
+            onChange={(e) => setGoalPointId(e.target.value)}
+            className="w-full px-3 py-2 rounded-xl border border-[#27352C] bg-[#1B241E] text-xs text-[#F2F7F3] focus:outline-none focus:border-[#39E58C]"
+          >
+            <option value="">None (Independent task)</option>
+            {goalPointsData?.points?.map((pt: any) => (
+              <option key={pt.id} value={pt.id}>
+                {pt.title}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        {/* Reward Coins & Missed Penalty */}
+        <div className="p-3.5 rounded-xl border border-[#27352C] bg-[#101713] space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Coins className="w-4 h-4 text-[#39E58C]" />
+              <span className="text-xs font-medium text-[#F2F7F3]">Reward Coins</span>
             </div>
-            <div>
-              <label className="block text-xs font-semibold text-charcoal-700 mb-1.5">
-                End Time
-              </label>
-              <input
-                type="datetime-local"
-                required
-                value={blockEndTime}
-                onChange={(e) => setBlockEndTime(e.target.value)}
-                className="w-full px-3 py-2 rounded-xl border border-charcoal-200 text-sm focus:outline-none focus:ring-2 focus:ring-sage-500/20 focus:border-sage-500 bg-white"
-              />
-            </div>
+            <input
+              type="number"
+              min={0}
+              value={rewardCoins}
+              onChange={(e) => setRewardCoins(Math.max(0, parseInt(e.target.value, 10) || 0))}
+              className="w-20 px-2 py-1 rounded-lg border border-[#27352C] bg-[#1B241E] text-xs text-right font-mono text-[#39E58C] focus:outline-none focus:border-[#39E58C]"
+            />
           </div>
 
-          <div className="flex justify-end gap-2.5 pt-2">
-            <Button variant="secondary" type="button" onClick={onClose}>
-              Cancel
-            </Button>
-            <Button variant="amber" type="submit" loading={loading}>
-              Schedule Block
-            </Button>
+          <div className="pt-2 border-t border-[#27352C]/60 space-y-2">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={penaltyEnabled}
+                onChange={(e) => setPenaltyEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-[#27352C] text-[#39E58C] bg-[#1B241E] focus:ring-0"
+              />
+              <span className="text-xs text-[#98A69C]">
+                Enable penalty if missed at end of day
+              </span>
+            </label>
+
+            {penaltyEnabled && (
+              <div className="flex items-center justify-between pl-6 animate-fade-in">
+                <span className="text-xs text-red-400 flex items-center gap-1.5">
+                  <ShieldAlert className="w-3.5 h-3.5" /> Penalty Deduction
+                </span>
+                <input
+                  type="number"
+                  min={1}
+                  value={penaltyCoins}
+                  onChange={(e) => setPenaltyCoins(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                  className="w-20 px-2 py-1 rounded-lg border border-red-500/40 bg-[#1B241E] text-xs text-right font-mono text-red-400 focus:outline-none focus:border-red-400"
+                />
+              </div>
+            )}
           </div>
-        </form>
-      )}
+        </div>
+
+        {/* Buttons */}
+        <div className="flex justify-end gap-3 pt-3 border-t border-[#27352C]">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 rounded-xl text-xs font-medium border border-[#27352C] text-[#98A69C] hover:text-[#F2F7F3] hover:border-[#98A69C] transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            disabled={loading || !title.trim()}
+            className="px-5 py-2 rounded-xl text-xs font-semibold bg-[#39E58C] hover:bg-[#26C978] text-[#0B0F0D] transition-colors disabled:opacity-50"
+          >
+            {loading ? 'Adding...' : 'Create Task'}
+          </button>
+        </div>
+      </form>
     </Modal>
   );
 };

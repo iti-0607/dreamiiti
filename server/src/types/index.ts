@@ -6,23 +6,12 @@ export interface AuthUser {
   name: string;
 }
 
-export interface AuthenticatedRequest extends Request {
+export interface AuthenticatedRequest<P = Record<string, string>> extends Request<P> {
   user?: AuthUser;
 }
 
-export interface GoalBreakdownOutput {
-  milestones: {
-    title: string;
-    description: string;
-    targetWeek: number;
-    tasks: {
-      title: string;
-      estimatedMinutes: number;
-      priority: 'MUST_DO' | 'SHOULD_DO' | 'OPTIONAL';
-      firstStep5Min: string;
-    }[];
-  }[];
-  recommendedWeeklyHours: number;
-  bufferRatio: number;
-  reviewPoints: string[];
+export interface AdvisoryGuidance {
+  topic: string;
+  advice: string;
+  reflectiveQuestions: string[];
 }

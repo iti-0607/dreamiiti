@@ -127,4 +127,274 @@ export const InsightService = {
         "Consistency is a rhythm, not a prison. Notice where energy flowed naturally and adjust where friction arose.",
     };
   },
+
+  async getContributionHeatmap(userId: string, clientToday?: string) {
+    const now = new Date();
+    const todayIso = (clientToday && /^\d{4}-\d{2}-\d{2}$/.test(clientToday))
+      ? clientToday
+      : now.toISOString().split('T')[0];
+
+    // 52 weeks = 364 days
+    const daysCount = 364;
+    const targetEndDate = new Date(todayIso + 'T23:59:59.999Z');
+    const startDate = new Date(targetEndDate);
+    startDate.setDate(targetEndDate.getDate() - daysCount + 1);
+    startDate.setHours(0, 0, 0, 0);
+
+    const startDateIso = startDate.toISOString().split('T')[0];
+
+    // 1. Fetch completed tasks (checking both completedAt and updatedAt)
+    const completedTasks = await prisma.task.findMany({
+      where: {
+        userId,
+        status: 'COMPLETED',
+        OR: [
+          { completedAt: { gte: startDate } },
+          { updatedAt: { gte: startDate } },
+        ],
+      },
+      select: { id: true, completedAt: true, updatedAt: true },
+    });
+
+    // 2. Fetch completed goal points (goals ticked off by user)
+    const completedGoalPoints = await prisma.goalPoint.findMany({
+      where: {
+        userId,
+        isCompleted: true,
+        OR: [
+          { completedAt: { gte: startDate } },
+          { updatedAt: { gte: startDate } },
+        ],
+      },
+      select: { id: true, completedAt: true, updatedAt: true },
+    });
+
+    // 3. Fetch completed milestones
+    const completedMilestones = await prisma.milestone.findMany({
+      where: {
+        userId,
+        isCompleted: true,
+        OR: [
+          { completedAt: { gte: startDate } },
+          { updatedAt: { gte: startDate } },
+        ],
+      },
+      select: { id: true, completedAt: true, updatedAt: true },
+    });
+
+    // 4. Fetch completed goals
+    const completedGoals = await prisma.goal.findMany({
+      where: {
+        userId,
+        status: 'COMPLETED',
+        updatedAt: { gte: startDate },
+      },
+      select: { id: true, updatedAt: true },
+    });
+
+    // 5. Fetch scheduled tasks
+    const scheduledTasks = await prisma.task.findMany({
+      where: {
+        userId,
+        dueDate: { gte: startDate },
+      },
+      select: { id: true, dueDate: true },
+    });
+
+    // 6. Fetch completed habit logs
+    const habitLogs = await prisma.habitLog.findMany({
+      where: {
+        userId,
+        isCompleted: true,
+        date: { gte: startDateIso },
+      },
+      select: { id: true, date: true, habitId: true },
+    });
+
+    // 7. Fetch active habits for expected calculation
+    const activeHabits = await prisma.habit.findMany({
+      where: { userId, status: 'ACTIVE' },
+      select: { id: true, frequency: true, selectedWeekdays: true },
+    });
+
+    // 8. Fetch coin transactions
+    const coinTransactions = await prisma.coinTransaction.findMany({
+      where: {
+        userId,
+        type: 'REWARD',
+        amount: { gt: 0 },
+        createdAt: { gte: startDate },
+      },
+      select: { amount: true, createdAt: true },
+    });
+
+    // Map by date
+    const tasksCompletedMap: Record<string, number> = {};
+
+    for (const t of completedTasks) {
+      const dateObj = t.completedAt || t.updatedAt;
+      if (dateObj) {
+        const d = dateObj.toISOString().split('T')[0];
+        tasksCompletedMap[d] = (tasksCompletedMap[d] || 0) + 1;
+      }
+    }
+
+    for (const gp of completedGoalPoints) {
+      const dateObj = gp.completedAt || gp.updatedAt;
+      if (dateObj) {
+        const d = dateObj.toISOString().split('T')[0];
+        tasksCompletedMap[d] = (tasksCompletedMap[d] || 0) + 1;
+      }
+    }
+
+    for (const m of completedMilestones) {
+      const dateObj = m.completedAt || m.updatedAt;
+      if (dateObj) {
+        const d = dateObj.toISOString().split('T')[0];
+        tasksCompletedMap[d] = (tasksCompletedMap[d] || 0) + 1;
+      }
+    }
+
+    for (const g of completedGoals) {
+      if (g.updatedAt) {
+        const d = g.updatedAt.toISOString().split('T')[0];
+        tasksCompletedMap[d] = (tasksCompletedMap[d] || 0) + 1;
+      }
+    }
+
+    const tasksScheduledMap: Record<string, number> = {};
+    for (const t of scheduledTasks) {
+      if (t.dueDate) {
+        const d = t.dueDate.toISOString().split('T')[0];
+        tasksScheduledMap[d] = (tasksScheduledMap[d] || 0) + 1;
+      }
+    }
+
+    const habitsCompletedMap: Record<string, number> = {};
+    for (const h of habitLogs) {
+      habitsCompletedMap[h.date] = (habitsCompletedMap[h.date] || 0) + 1;
+    }
+
+    const coinsEarnedMap: Record<string, number> = {};
+    for (const c of coinTransactions) {
+      const d = c.createdAt.toISOString().split('T')[0];
+      coinsEarnedMap[d] = (coinsEarnedMap[d] || 0) + c.amount;
+    }
+
+    // Build day-by-day entries
+    const days: Array<{
+      date: string;
+      dayOfWeek: number; // 0=Sun, 1=Mon, ..., 6=Sat
+      tasksCompleted: number;
+      tasksScheduled: number;
+      habitsCompleted: number;
+      habitsExpected: number;
+      coinsEarned: number;
+      totalActivity: number;
+      level: number;
+      isToday: boolean;
+    }> = [];
+
+    const cursor = new Date(startDate);
+    while (cursor <= targetEndDate) {
+      const dStr = cursor.toISOString().split('T')[0];
+      const dow = cursor.getDay(); // 0 is Sunday, 1 is Monday ... 6 is Saturday
+      // Iso weekday 1=Mon..7=Sun
+      const isoWeekday = dow === 0 ? 7 : dow;
+
+      let habitsExpected = 0;
+      for (const h of activeHabits) {
+        if (h.frequency === 'DAILY') {
+          habitsExpected++;
+        } else if (h.frequency === 'WEEKDAYS') {
+          if (isoWeekday >= 1 && isoWeekday <= 5) habitsExpected++;
+        } else if (h.selectedWeekdays) {
+          const selected = h.selectedWeekdays.split(',').map((s) => parseInt(s.trim(), 10));
+          if (selected.includes(isoWeekday)) habitsExpected++;
+        }
+      }
+
+      const tasksCompleted = tasksCompletedMap[dStr] || 0;
+      const tasksScheduled = tasksScheduledMap[dStr] || 0;
+      const habitsCompleted = habitsCompletedMap[dStr] || 0;
+      const coinsEarned = coinsEarnedMap[dStr] || 0;
+      const totalActivity = tasksCompleted + habitsCompleted;
+
+      let level = 0;
+      if (totalActivity === 1) level = 1;
+      else if (totalActivity >= 2 && totalActivity <= 3) level = 2;
+      else if (totalActivity >= 4 && totalActivity <= 5) level = 3;
+      else if (totalActivity >= 6) level = 4;
+
+      days.push({
+        date: dStr,
+        dayOfWeek: dow,
+        tasksCompleted,
+        tasksScheduled,
+        habitsCompleted,
+        habitsExpected,
+        coinsEarned,
+        totalActivity,
+        level,
+        isToday: dStr === todayIso,
+      });
+
+      cursor.setDate(cursor.getDate() + 1);
+    }
+
+    // Calculate streaks
+    let currentStreak = 0;
+    let longestStreak = 0;
+    let tempStreak = 0;
+    let activeDays = 0;
+
+    for (let i = 0; i < days.length; i++) {
+      if (days[i].totalActivity > 0) {
+        activeDays++;
+        tempStreak++;
+        if (tempStreak > longestStreak) {
+          longestStreak = tempStreak;
+        }
+      } else {
+        tempStreak = 0;
+      }
+    }
+
+    // Current streak calculation:
+    // If today is active, count backwards from today.
+    // If today is not active yet, check yesterday (day is in-progress).
+    const todayIndex = days.findIndex((d) => d.date === todayIso);
+    if (todayIndex >= 0) {
+      if (days[todayIndex].totalActivity > 0) {
+        for (let i = todayIndex; i >= 0; i--) {
+          if (days[i].totalActivity > 0) currentStreak++;
+          else break;
+        }
+      } else if (todayIndex > 0 && days[todayIndex - 1].totalActivity > 0) {
+        for (let i = todayIndex - 1; i >= 0; i--) {
+          if (days[i].totalActivity > 0) currentStreak++;
+          else break;
+        }
+      }
+    }
+
+    const totalCompletedTasks =
+      (await prisma.task.count({ where: { userId, status: 'COMPLETED' } })) +
+      (await prisma.goalPoint.count({ where: { userId, isCompleted: true } })) +
+      (await prisma.milestone.count({ where: { userId, isCompleted: true } })) +
+      (await prisma.goal.count({ where: { userId, status: 'COMPLETED' } }));
+
+    const todayDay = days.find((d) => d.date === todayIso);
+
+    return {
+      days,
+      currentStreak,
+      longestStreak,
+      activeDays,
+      totalCompletedTasks,
+      today: todayIso,
+      todayActive: (todayDay?.totalActivity || 0) > 0,
+      todayCompletedCount: todayDay?.totalActivity || 0,
+    };
+  },
 };

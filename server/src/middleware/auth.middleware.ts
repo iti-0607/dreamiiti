@@ -29,10 +29,19 @@ export const requireAuth = async (
       return;
     }
 
-    const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string };
+    const decoded = jwt.verify(token, JWT_SECRET) as any;
+    const userId = decoded?.id || decoded?.userId;
+
+    if (!userId) {
+      res.status(401).json({
+        success: false,
+        error: 'Invalid session structure. Please sign in again.',
+      });
+      return;
+    }
 
     const user = await prisma.user.findUnique({
-      where: { id: decoded.id },
+      where: { id: userId },
       select: { id: true, email: true, name: true },
     });
 
@@ -69,13 +78,16 @@ export const optionalAuth = async (
     }
 
     if (token) {
-      const decoded = jwt.verify(token, JWT_SECRET) as { id: string; email: string };
-      const user = await prisma.user.findUnique({
-        where: { id: decoded.id },
-        select: { id: true, email: true, name: true },
-      });
-      if (user) {
-        req.user = user as AuthUser;
+      const decoded = jwt.verify(token, JWT_SECRET) as any;
+      const userId = decoded?.id || decoded?.userId;
+      if (userId) {
+        const user = await prisma.user.findUnique({
+          where: { id: userId },
+          select: { id: true, email: true, name: true },
+        });
+        if (user) {
+          req.user = user as AuthUser;
+        }
       }
     }
   } catch {
